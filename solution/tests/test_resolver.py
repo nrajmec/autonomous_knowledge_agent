@@ -123,6 +123,41 @@ def test_resolver_records_error_for_unknown_tool_call_without_crashing(monkeypat
     assert logged_call["result"]["ok"] is False
 
 
+@pytest.mark.parametrize(
+    "channel,expected_snippet",
+    [
+        ("email", "complete email reply"),
+        ("chat", "short and conversational"),
+        ("social_media", "Never include account-specific details"),
+        ("carrier_pigeon", resolver_module.DEFAULT_CHANNEL_GUIDANCE),
+    ],
+)
+def test_resolver_prompt_adapts_to_channel(monkeypatch, channel, expected_snippet):
+    node = create_resolver_node("general", "handle general questions", [])
+    fake_llm = FakeChatModel(
+        tool_loop_responses=[_stop_message()],
+        structured_responses=[ResolverOutput(response="Answer.", confidence=0.8, escalate=False)],
+    )
+
+    node(_base_state(channel=channel), llm=fake_llm)
+
+    system_message = fake_llm.captured_tool_loop_messages[0][0]
+    assert expected_snippet in system_message.content
+
+
+def test_resolver_prompt_uses_default_guidance_when_channel_missing():
+    node = create_resolver_node("general", "handle general questions", [])
+    fake_llm = FakeChatModel(
+        tool_loop_responses=[_stop_message()],
+        structured_responses=[ResolverOutput(response="Answer.", confidence=0.8, escalate=False)],
+    )
+
+    node(_base_state(), llm=fake_llm)  # no "channel" key at all
+
+    system_message = fake_llm.captured_tool_loop_messages[0][0]
+    assert resolver_module.DEFAULT_CHANNEL_GUIDANCE in system_message.content
+
+
 def test_create_resolver_node_rejects_unknown_tool_names():
     with pytest.raises(ValueError):
         create_resolver_node("technical", "...", ["not_a_real_tool"])

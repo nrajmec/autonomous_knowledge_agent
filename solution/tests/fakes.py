@@ -13,10 +13,13 @@ from typing import Any
 
 
 class _ScriptedRunnable:
-    def __init__(self, pop_fn):
+    def __init__(self, pop_fn, on_invoke=None):
         self._pop_fn = pop_fn
+        self._on_invoke = on_invoke
 
     def invoke(self, messages: Any):
+        if self._on_invoke is not None:
+            self._on_invoke(messages)
         return self._pop_fn()
 
 
@@ -35,6 +38,10 @@ class FakeChatModel:
     def __init__(self, tool_loop_responses=None, structured_responses=None):
         self._tool_loop_responses = list(tool_loop_responses or [])
         self._structured_responses = list(structured_responses or [])
+        # Every `messages` list passed to the bind_tools()-returned
+        # runnable's .invoke(), in call order -- lets a test assert on the
+        # prompt actually built (e.g. per-channel system prompt wording).
+        self.captured_tool_loop_messages: list[Any] = []
 
     def _pop_tool_loop(self):
         if not self._tool_loop_responses:
@@ -47,7 +54,7 @@ class FakeChatModel:
         return self._structured_responses.pop(0)
 
     def bind_tools(self, tools):
-        return _ScriptedRunnable(self._pop_tool_loop)
+        return _ScriptedRunnable(self._pop_tool_loop, on_invoke=self.captured_tool_loop_messages.append)
 
     def with_structured_output(self, schema):
         return _ScriptedRunnable(self._pop_structured)

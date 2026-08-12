@@ -209,6 +209,27 @@ entry: appends it to `state["trace"]` (in-band, inspectable per-ticket via
 (out-of-band, greppable/parseable across all tickets and sessions). Every entry carries
 `{timestamp, ticket_id, node, event, ...decision-specific details}`.
 
+## Multi-channel support
+
+`state["channel"]` (e.g. `"chat"`, `"email"`, `"social_media"`) is accepted as ticket
+metadata, persisted on `Ticket.channel`, and read by the Classifier for context -- but
+resolvers additionally *adapt their draft response's style* to it via `CHANNEL_GUIDANCE`
+(`agentic/agents/resolver.py`), appended to every resolver's system prompt at call time:
+
+- `email` — a complete email reply (greeting + sign-off)
+- `chat` — short and conversational, no greeting/sign-off
+- `social_media` — brief and generic; explicitly instructed to never include
+  account-specific details (subscription tier, reservation ids, etc.) in a reply that may be
+  publicly visible
+- anything else — a sensible default ("keep it clear and appropriately concise")
+
+Live-verified against the real model (same underlying resolver logic and knowledge lookup,
+only `channel` varied): the email reply came back with a `Subject:` line, greeting, and
+sign-off; the chat reply was two sentences with neither; the social-media reply stayed short
+and generic. Covered by `tests/test_resolver.py::test_resolver_prompt_adapts_to_channel`
+(parametrized over all four cases) using a `FakeChatModel` that records the actual system
+prompt built for each channel.
+
 ## Input handling
 
 A ticket's first turn seeds state with `ticket_id`, `account_id`, `external_user_id`,

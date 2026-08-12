@@ -84,6 +84,34 @@ asking about.
 
 {category_instructions}"""
 
+# Multi-channel support: the same resolver logic/tools handle every channel,
+# but the customer-facing draft is styled to fit where it's actually going.
+# Keyed by `state["channel"]` (see `agentic/state.py`), case-insensitive.
+CHANNEL_GUIDANCE = {
+    "email": (
+        "This ticket came in over email. Write a complete email reply: open "
+        "with a brief greeting using the customer's name if known, and close "
+        "with a short, professional sign-off."
+    ),
+    "chat": (
+        "This ticket came in over live chat. Keep the reply short and "
+        "conversational -- no greeting or sign-off needed, get straight to "
+        "the answer."
+    ),
+    "social_media": (
+        "This ticket came in over a public social media channel. Keep the "
+        "reply brief and generic. Never include account-specific details "
+        "(subscription tier, reservation ids, personal data) in a reply that "
+        "may be publicly visible -- if specifics are needed, ask the "
+        "customer to continue over a private channel instead."
+    ),
+}
+DEFAULT_CHANNEL_GUIDANCE = "Keep the reply clear and appropriately concise for the customer's channel."
+
+
+def _channel_guidance(channel: str | None) -> str:
+    return CHANNEL_GUIDANCE.get((channel or "").strip().lower(), DEFAULT_CHANNEL_GUIDANCE)
+
 
 def _build_search_knowledge_base_tool(state: dict[str, Any]) -> StructuredTool:
     account_id = state["account_id"]
@@ -213,8 +241,9 @@ def create_resolver_node(
         built_tools = {name: _TOOL_BUILDERS[name](state) for name in tool_names}
         tool_model = model.bind_tools(list(built_tools.values()))
 
+        channel_prompt = f"{system_prompt}\n\nChannel guidance: {_channel_guidance(state.get('channel'))}"
         messages: list[Any] = [
-            SystemMessage(content=system_prompt),
+            SystemMessage(content=channel_prompt),
             HumanMessage(
                 content=(
                     f"Account context: {state.get('user_context', {})}\n\n"
