@@ -22,6 +22,8 @@ and installed package versions).
 
 ### Dependencies
 
+Python 3.13.12
+
 ```
 langgraph
 langchain
