@@ -33,7 +33,7 @@ solution/
     workflow.py                # hand-built StateGraph — the orchestrator
   data/
     core/, external/, models/  # SQLAlchemy models + seeded SQLite DBs
-  tests/                       # pytest suite (124 tests)
+  tests/                       # pytest suite (125 tests)
 ```
 
 ## Setup
@@ -84,7 +84,7 @@ ticket.
 pytest
 ```
 
-124 tests, covering every tool module, every agent node, the two MCP
+125 tests, covering every tool module, every agent node, the two MCP
 servers, the trace-metrics reporting layer, and seven full end-to-end runs
 of the *compiled* orchestrator graph (`tests/test_workflow_integration.py`)
 — a normal FAQ resolution, a tool-driven booking, the original hard-escalate

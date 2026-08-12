@@ -511,6 +511,18 @@ def test_same_session_second_turn_depends_on_first_turn(_isolated_databases):
     )
 
     assert result2["final_status"] == "resolved"
+
+    # Regression guard: both turns must have genuinely gone all the way
+    # through Classifier and the Resolver a *second* time, not just once
+    # with turn 2 short-circuiting straight to Finalize on a stale
+    # confidence left over in state from turn 1. FakeChatModel only pops
+    # from these queues on a real .invoke() call, so an empty queue proves
+    # both fakes were actually called twice.
+    assert classifier_fake._structured_responses == []
+    assert resolver_fake._structured_responses == []
+    assert resolver_fake._tool_loop_responses == []
+    assert len(resolver_fake.captured_tool_loop_messages) == 2
+
     # The resolver's second prompt must actually carry turn 1's content --
     # this is the whole point: a follow-up that only makes sense in light
     # of what was said before it.

@@ -282,6 +282,21 @@ runs it through the whole pipeline again on each turn — `thread_id=ticket_id` 
 turn to the same LangGraph session, so short-term memory (message history, already-loaded
 context) persists across turns via the checkpointer.
 
+**Per-turn state reset.** Only `messages` and `trace` have reducers that accumulate across
+turns; every other `TicketState` field (`confidence`, `draft_response`, `escalation_needed`,
+`detected_preference`, `route`, ...) is plain last-write-wins state that the checkpointer would
+otherwise carry over verbatim from the previous turn's final values. `context_loader_node`
+(always the first node on every invocation) explicitly resets all of these to their fresh-turn
+defaults before anything else runs. This matters more than it looks: without it, a second turn
+that happened to inherit a `confidence` left over from a prior resolution would make Supervisor's
+`resolver_has_run = state.get("confidence") is not None` check think a resolver had already run
+*for this turn*, skipping straight to Finalize/Escalation on stale data instead of actually
+processing the new `ticket_text`. Caught via a real multi-turn run in `03_agentic_app.ipynb`
+against the live model; regression-guarded by
+`tests/test_context_loader.py::test_context_loader_resets_stale_per_turn_state_from_a_previous_turn`
+and by an explicit "both fakes' response queues fully drained" assertion in
+`test_same_session_second_turn_depends_on_first_turn`.
+
 ## Testing
 
 Every LLM-calling node (`classifier`, the resolver factory, `escalation`) accepts an injectable

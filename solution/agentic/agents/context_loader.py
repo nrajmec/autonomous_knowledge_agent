@@ -5,6 +5,18 @@ CultPass profile + subscription, their UDA-Hub ticket history, and any
 relevant long-term memories into `state["user_context"]`, so classification
 and resolution both start with personalized context already available
 instead of each agent re-fetching pieces of it independently.
+
+It also resets every *per-turn* working-state field (see `_FRESH_TURN_STATE`
+below). Only `messages` and `trace` have reducers that accumulate across
+turns within the same `thread_id` -- everything else (`confidence`,
+`draft_response`, `escalation_needed`, ...) is plain last-write-wins state
+that the checkpointer would otherwise carry over verbatim from the previous
+turn's final values. Left unreset, a second turn in the same session could
+see a stale `confidence` from turn 1 and short-circuit straight to
+Finalize/Escalation without a resolver ever running for its own ticket_text
+-- Supervisor's `resolver_has_run = state.get("confidence") is not None`
+check can't otherwise tell "second pass of this turn" apart from "second
+pass of the previous turn, still sitting in state."
 """
 from __future__ import annotations
 
@@ -14,6 +26,21 @@ from agentic.tools.cultpass_tools import get_customer_profile, get_subscription_
 from agentic.tools.memory_tools import recall_customer_memory
 from agentic.tools.udahub_tools import get_internal_user_id, get_ticket_history
 from agentic.tracing import log_event
+
+# Reset at the start of every invocation (see module docstring) so a new
+# turn never inherits working state left over from a previous one.
+_FRESH_TURN_STATE: dict[str, Any] = {
+    "classification": {},
+    "draft_response": None,
+    "cited_article_ids": [],
+    "confidence": None,
+    "escalation_needed": False,
+    "escalation_reason": None,
+    "escalation_summary": None,
+    "detected_preference": None,
+    "final_status": None,
+    "route": None,
+}
 
 
 def context_loader_node(state: dict[str, Any]) -> dict[str, Any]:
@@ -58,4 +85,4 @@ def context_loader_node(state: dict[str, Any]) -> dict[str, Any]:
         memory_count=len(user_context["long_term_memories"]),
     )
 
-    return {"user_context": user_context, "trace": [entry]}
+    return {"user_context": user_context, "trace": [entry], **_FRESH_TURN_STATE}
