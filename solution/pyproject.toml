@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# Ensures `import agentic...`, `import data...`, `import utils` resolve to
+# this directory regardless of where `pytest` is invoked from.
+pythonpath = ["."]
+testpaths = ["tests"]
