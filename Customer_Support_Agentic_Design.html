@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UDA-Hub Project Report</title>
+<meta name="description" content="Exhaustive engineering report on UDA-Hub, a hand-built LangGraph multi-agent customer support system for CultPass.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============ Design tokens ============ */
+:root{
+  --bg:#f7f6f2;
+  --surface:#ffffff;
+  --surface-2:#eef0f0;
+  --border:#dcdfdc;
+  --text:#1c1f1e;
+  --text-dim:#5b6260;
+  --accent:#2f8f86;
+  --accent-bright:#1f6e66;
+  --accent-tint:#e2f2f0;
+  --ok:#2f8f5c;
+  --ok-tint:#e4f3ea;
+  --warn:#b06a1e;
+  --warn-tint:#f7ead9;
+  --cat-technical:#3468a8;
+  --cat-billing:#7d4fae;
+  --cat-account:#b8455e;
+  --cat-booking:#2f8f5c;
+  --cat-general:#6b7280;
+  --code-bg:#eceeee;
+  --shadow: 0 1px 2px rgba(20,25,24,0.06), 0 8px 24px -12px rgba(20,25,24,0.15);
+  --radius:8px;
+  --space-1:0.4rem;
+  --space-2:0.8rem;
+  --space-3:1.4rem;
+  --space-4:2.2rem;
+  --space-5:3.6rem;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12141a;
+    --surface:#191d26;
+    --surface-2:#212635;
+    --border:#333b4d;
+    --text:#eae8e1;
+    --text-dim:#9599ac;
+    --accent:#5fb8b0;
+    --accent-bright:#8fd8cf;
+    --accent-tint:#1d3634;
+    --ok:#6fbf8f;
+    --ok-tint:#1c3327;
+    --warn:#e0a458;
+    --warn-tint:#3a2c17;
+    --cat-technical:#7ba7d9;
+    --cat-billing:#c99fe0;
+    --cat-account:#e0899b;
+    --cat-booking:#8fc9a0;
+    --cat-general:#a7abbd;
+    --code-bg:#161a22;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12141a;
+  --surface:#191d26;
+  --surface-2:#212635;
+  --border:#333b4d;
+  --text:#eae8e1;
+  --text-dim:#9599ac;
+  --accent:#5fb8b0;
+  --accent-bright:#8fd8cf;
+  --accent-tint:#1d3634;
+  --ok:#6fbf8f;
+  --ok-tint:#1c3327;
+  --warn:#e0a458;
+  --warn-tint:#3a2c17;
+  --cat-technical:#7ba7d9;
+  --cat-billing:#c99fe0;
+  --cat-account:#e0899b;
+  --cat-booking:#8fc9a0;
+  --cat-general:#a7abbd;
+  --code-bg:#161a22;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.6);
+}
+
+/* ============ Base ============ */
+*{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  font-size:16px;
+  line-height:1.65;
+  overflow-x:hidden;
+}
+h1,h2,h3,h4{
+  font-family:'Fraunces', Georgia, serif;
+  font-weight:600;
+  line-height:1.15;
+  text-wrap:balance;
+  margin:0 0 var(--space-2) 0;
+  color:var(--text);
+}
+h1{font-size:2.6rem; font-weight:700;}
+h2{font-size:1.7rem; letter-spacing:-0.01em;}
+h3{font-size:1.25rem;}
+h4{font-size:1.05rem; font-family:'IBM Plex Sans',sans-serif; font-weight:600;}
+p{margin:0 0 var(--space-2) 0; max-width:70ch;}
+a{color:var(--accent-bright);}
+a:focus-visible, button:focus-visible, summary:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+code, pre, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace;}
+code{background:var(--code-bg); padding:0.1em 0.4em; border-radius:4px; font-size:0.88em;}
+pre{
+  background:var(--code-bg);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:var(--space-3);
+  overflow-x:auto;
+  font-size:0.82rem;
+  line-height:1.55;
+  margin:0 0 var(--space-3) 0;
+}
+pre code{background:none; padding:0;}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:0.72rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--accent);
+  font-weight:600;
+  display:block;
+  margin-bottom:var(--space-1);
+}
+table{border-collapse:collapse; width:100%; font-size:0.9rem;}
+th,td{
+  text-align:left;
+  padding:0.55rem 0.8rem;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+th{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:0.72rem;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  font-weight:600;
+  white-space:nowrap;
+}
+tbody tr:hover{background:var(--surface-2);}
+.table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); margin:0 0 var(--space-3) 0;}
+.table-wrap table{margin:0;}
+.table-wrap th:first-child, .table-wrap td:first-child{padding-left:1rem;}
+
+/* ============ Layout ============ */
+.shell{
+  display:flex;
+  max-width:1280px;
+  margin:0 auto;
+  align-items:flex-start;
+}
+nav.toc{
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  flex:0 0 240px;
+  padding:var(--space-4) var(--space-3) var(--space-4) var(--space-4);
+  font-family:'IBM Plex Mono', monospace;
+  font-size:0.78rem;
+}
+nav.toc .toc-title{
+  color:var(--text-dim);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  font-size:0.68rem;
+  margin-bottom:var(--space-2);
+}
+nav.toc ol{list-style:none; margin:0; padding:0;}
+nav.toc li{margin-bottom:0.35rem;}
+nav.toc a{
+  display:block;
+  color:var(--text-dim);
+  text-decoration:none;
+  padding:0.3rem 0.5rem;
+  border-radius:5px;
+  border-left:2px solid transparent;
+}
+nav.toc a:hover{color:var(--text); background:var(--surface-2);}
+nav.toc a.active{color:var(--accent-bright); border-left-color:var(--accent); background:var(--accent-tint);}
+.toc-num{color:var(--accent); margin-right:0.4em;}
+
+main{flex:1 1 auto; min-width:0; padding:var(--space-4) var(--space-4) var(--space-5) var(--space-4);}
+
+header.masthead{
+  border-bottom:1px solid var(--border);
+  padding-bottom:var(--space-4);
+  margin-bottom:var(--space-5);
+}
+header.masthead .kicker{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:0.78rem;
+  color:var(--text-dim);
+  letter-spacing:0.04em;
+  margin-bottom:var(--space-2);
+}
+header.masthead p.lede{font-size:1.1rem; color:var(--text-dim); max-width:62ch;}
+.badge-row{display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:var(--space-3);}
+.badge{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:0.72rem;
+  padding:0.3rem 0.65rem;
+  border-radius:999px;
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  background:var(--surface);
+}
+
+section{margin-bottom:var(--space-5); scroll-margin-top:1.5rem;}
+section > .eyebrow{font-size:0.78rem;}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:var(--space-3);
+  box-shadow:var(--shadow);
+}
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3);}
+.grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-3);}
+
+.status-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:0.35em;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:0.72rem;
+  font-weight:600;
+  padding:0.18rem 0.6rem;
+  border-radius:999px;
+}
+.status-pill.resolved{background:var(--ok-tint); color:var(--ok);}
+.status-pill.escalated{background:var(--warn-tint); color:var(--warn);}
+.cat-pill{
+  display:inline-block;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:0.68rem;
+  font-weight:600;
+  padding:0.15rem 0.55rem;
+  border-radius:999px;
+  color:#fff;
+}
+.cat-technical{background:var(--cat-technical);}
+.cat-billing{background:var(--cat-billing);}
+.cat-account{background:var(--cat-account);}
+.cat-booking{background:var(--cat-booking);}
+.cat-general{background:var(--cat-general);}
+
+.callout{
+  border-left:3px solid var(--accent);
+  background:var(--accent-tint);
+  border-radius:0 var(--radius) var(--radius) 0;
+  padding:var(--space-2) var(--space-3);
+  margin:0 0 var(--space-3) 0;
+}
+.callout p:last-child{margin-bottom:0;}
+.callout .eyebrow{color:var(--accent-bright);}
+
+figure{margin:0 0 var(--space-3) 0;}
+figure svg{width:100%; height:auto; display:block;}
+figcaption{font-size:0.85rem; color:var(--text-dim); margin-top:var(--space-2); max-width:70ch;}
+
+.workflow{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  margin-bottom:var(--space-4);
+}
+.workflow-head{
+  padding:var(--space-3);
+  background:var(--surface);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:var(--space-2);
+  flex-wrap:wrap;
+  border-bottom:1px solid var(--border);
+}
+.workflow-head h3{margin:0;}
+.workflow-body{padding:var(--space-3); background:var(--surface);}
+.trace-step{
+  display:grid;
+  grid-template-columns:22px 1fr;
+  gap:0.75rem;
+  padding:0.6rem 0;
+  border-bottom:1px dashed var(--border);
+}
+.trace-step:last-child{border-bottom:none;}
+.trace-dot{
+  width:10px; height:10px; border-radius:50%;
+  background:var(--accent);
+  margin-top:0.4rem;
+}
+.trace-node{font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:var(--accent-bright); font-weight:600;}
+.trace-detail{font-size:0.88rem; color:var(--text-dim); margin-top:0.15rem;}
+.ticket-text{
+  font-style:italic;
+  border-left:2px solid var(--border);
+  padding-left:0.8rem;
+  color:var(--text-dim);
+}
+
+.chan-compare{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-3);}
+.chan-card{border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+.chan-card .chan-label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:0.72rem;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  padding:0.5rem 0.9rem;
+  background:var(--surface-2);
+  border-bottom:1px solid var(--border);
+  color:var(--text-dim);
+}
+.chan-card .chan-body{padding:0.9rem; font-size:0.9rem; background:var(--surface);}
+
+.threshold-box{
+  display:flex;
+  gap:var(--space-3);
+  flex-wrap:wrap;
+}
+.threshold-item{
+  flex:1 1 220px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:var(--space-3);
+  background:var(--surface);
+}
+.threshold-value{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:2rem;
+  color:var(--accent);
+  font-weight:600;
+  line-height:1;
+  margin-bottom:0.3rem;
+}
+
+footer{
+  border-top:1px solid var(--border);
+  padding-top:var(--space-3);
+  color:var(--text-dim);
+  font-size:0.85rem;
+}
+
+.theme-toggle{
+  position:fixed;
+  top:1rem;
+  right:1.2rem;
+  z-index:20;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:0.72rem;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text-dim);
+  border-radius:999px;
+  padding:0.4rem 0.8rem;
+  cursor:pointer;
+  box-shadow:var(--shadow);
+}
+.theme-toggle:hover{color:var(--text);}
+
+@media (max-width:920px){
+  .shell{flex-direction:column;}
+  nav.toc{position:static; height:auto; width:100%; flex:none; padding:var(--space-3);}
+  nav.toc ol{display:flex; flex-wrap:wrap; gap:0.3rem;}
+  nav.toc li{margin:0;}
+  main{padding:var(--space-3);}
+  .grid-2, .grid-3, .chan-compare{grid-template-columns:1fr;}
+  h1{font-size:2rem;}
+}
+@media (prefers-reduced-motion: reduce){
+  *{scroll-behavior:auto !important;}
+}
+html{scroll-behavior:smooth;}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle color theme">◐ theme</button>
+
+<div class="shell">
+<nav class="toc" aria-label="Table of contents">
+  <span class="toc-title">UDA-Hub Report</span>
+  <ol>
+    <li><a href="#overview"><span class="toc-num">01</span>Overview</a></li>
+    <li><a href="#architecture"><span class="toc-num">02</span>Architecture</a></li>
+    <li><a href="#agents"><span class="toc-num">03</span>Agent Roster</a></li>
+    <li><a href="#state"><span class="toc-num">04</span>State Schema</a></li>
+    <li><a href="#database"><span class="toc-num">05</span>Database &amp; Seed Data</a></li>
+    <li><a href="#tools"><span class="toc-num">06</span>Tools &amp; MCP</a></li>
+    <li><a href="#rag"><span class="toc-num">07</span>Knowledge Retrieval</a></li>
+    <li><a href="#memory"><span class="toc-num">08</span>Memory Systems</a></li>
+    <li><a href="#channels"><span class="toc-num">09</span>Multi-Channel</a></li>
+    <li><a href="#logging"><span class="toc-num">10</span>Logging &amp; Tracing</a></li>
+    <li><a href="#workflows"><span class="toc-num">11</span>Example Workflows</a></li>
+    <li><a href="#testing"><span class="toc-num">12</span>Testing Strategy</a></li>
+    <li><a href="#run"><span class="toc-num">13</span>Setup &amp; Run</a></li>
+    <li><a href="#decisions"><span class="toc-num">14</span>Design Decisions</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="masthead">
+  <span class="kicker">UDA-HUB &nbsp;·&nbsp; PROJECT REPORT &nbsp;·&nbsp; UDACITY AI ENGINEER CAPSTONE</span>
+  <h1>UDA-Hub — Universal Decision Agent</h1>
+  <p class="lede">A hand-built LangGraph multi-agent system that reads a CultPass support ticket, classifies it, routes it to a specialized resolver, grounds its answer in a knowledge base and the customer's own history, and either resolves or escalates it — with full state, session, and long-term memory throughout.</p>
+  <div class="badge-row">
+    <span class="badge">LangGraph StateGraph</span>
+    <span class="badge">8 agents + 2 system nodes</span>
+    <span class="badge">Supervisor pattern</span>
+    <span class="badge">FastMCP · 2 servers</span>
+    <span class="badge">RAG · cosine similarity</span>
+    <span class="badge">SQLite · SQLAlchemy</span>
+    <span class="badge">gpt-4o-mini</span>
+    <span class="badge">97 tests</span>
+  </div>
+</header>
+
+<!-- ============ 01 OVERVIEW ============ -->
+<section id="overview">
+  <span class="eyebrow">01 — Overview</span>
+  <h2>What this system does</h2>
+  <p>CultPass is a subscription cultural-experiences platform. When a customer writes in — "I can't log in," "I want to upgrade my plan," "cancel my reservation" — UDA-Hub takes that raw ticket text plus a bit of metadata (channel, account, customer id) and runs it through a fixed pipeline: <strong>load context → classify → route → resolve or escalate → persist</strong>. The interesting engineering is entirely in how that pipeline is built: every node and edge is hand-wired as an explicit LangGraph <code>StateGraph</code> — no <code>create_react_agent</code>, no <code>langgraph_supervisor</code> — so the routing logic that decides a ticket's fate is fully visible in code, not hidden inside a prebuilt helper.</p>
+  <div class="grid-3">
+    <div class="card">
+      <h4>Classify &amp; route</h4>
+      <p style="margin:0;">One LLM call commits a ticket to exactly one of five categories, plus urgency/sentiment/complexity and a hard-escalate flag. A pure rule-based Supervisor dispatches from there — no ambiguity left for an LLM to resolve at the routing step.</p>
+    </div>
+    <div class="card">
+      <h4>Resolve with tools</h4>
+      <p style="margin:0;">Five category resolvers share one hand-rolled tool-calling loop (bind → invoke → execute → feed back, bounded at 4 iterations) against real CultPass/UDA-Hub data — profile lookups, subscription changes, reservations, knowledge-base search.</p>
+    </div>
+    <div class="card">
+      <h4>Remember</h4>
+      <p style="margin:0;">Three distinct memory mechanisms: LangGraph's own session checkpointer, a custom long-term <code>customer_memory</code> table for preferences/resolutions, and a durable ticket/message history — each solving a different requirement.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 ARCHITECTURE ============ -->
+<section id="architecture">
+  <span class="eyebrow">02 — Architecture</span>
+  <h2>Supervisor (hub-and-spoke) pattern</h2>
+  <p>A single <code>supervisor</code> node is re-entered <em>twice</em> per ticket and inspects state to decide the next hop, via LangGraph's <code>add_conditional_edges</code>. On its first entry — right after classification, before any resolver has run — it either dispatches to one of five category resolvers or bypasses straight to Escalation on a hard business-rule flag. On its second entry — after a resolver has produced a draft — it evaluates that resolver's confidence and either sends the ticket to Finalize or redirects it to Escalation. It's the same function both times; it just reads different signals out of state depending on whether <code>confidence</code> has been set yet.</p>
+  <p>This is deliberately <strong>rule-based, not an LLM call</strong>: the Classifier has already been forced, via structured output, to commit to exactly one of five categories, so there's no remaining ambiguity for an LLM to resolve at the routing step itself — it's a table lookup plus a threshold check.</p>
+
+  <figure>
+    <svg viewBox="0 0 1320 780" role="img" aria-label="Flowchart: a ticket enters at Context Loader, passes through the Classifier, and reaches the Supervisor. The Supervisor either sends it to one of five category resolvers or bypasses straight to Escalation on a hard business rule, routed along a top margin so it never crosses the resolver row. Resolvers report their result back to the Supervisor through a gap between two boxes, and on this second pass the Supervisor sends high-confidence results to Finalize and low-confidence or flagged results to Escalation. Escalation also feeds into Finalize, and Finalize produces the final response and database update.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g fill="none" stroke="currentColor" stroke-width="1.5" font-family="IBM Plex Mono, monospace">
+
+        <!-- START -->
+        <ellipse cx="580" cy="34" rx="92" ry="24" stroke-opacity="0.6"/>
+        <text x="580" y="39" text-anchor="middle" font-size="12" fill="currentColor" stroke="none">Ticket received</text>
+        <line x1="580" y1="58" x2="580" y2="88" marker-end="url(#arrow)"/>
+
+        <!-- Context Loader -->
+        <rect x="470" y="90" width="220" height="56" rx="8"/>
+        <text x="580" y="114" text-anchor="middle" font-size="13" fill="currentColor" stroke="none" font-weight="600">Context Loader</text>
+        <text x="580" y="132" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.65">system node</text>
+        <line x1="580" y1="146" x2="580" y2="176" marker-end="url(#arrow)"/>
+
+        <!-- Classifier -->
+        <rect x="470" y="178" width="220" height="56" rx="8"/>
+        <text x="580" y="202" text-anchor="middle" font-size="13" fill="currentColor" stroke="none" font-weight="600">Classifier</text>
+        <text x="580" y="220" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.65">LLM agent · no tools</text>
+        <line x1="580" y1="234" x2="580" y2="264" marker-end="url(#arrow)"/>
+
+        <!-- Supervisor diamond -->
+        <polygon points="580,266 690,336 580,406 470,336" stroke-width="2"/>
+        <text x="580" y="330" text-anchor="middle" font-size="13" fill="currentColor" stroke="none" font-weight="600">Supervisor</text>
+        <text x="580" y="348" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.65">rule-based router</text>
+
+        <!-- 1st pass: Supervisor -> Escalation, routed along the top margin (y=336), entirely above the resolver row (y&gt;=440) so it never crosses a box -->
+        <path d="M690,336 L1180,336 L1180,468" stroke-opacity="0.85" marker-end="url(#arrow)"/>
+        <text x="935" y="304" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.85">1st pass — hard business rule</text>
+        <text x="935" y="318" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.85">2nd pass — confidence &lt; 0.6 or escalate=True</text>
+
+        <!-- 1st pass: Supervisor -> resolver fan-out -->
+        <text x="596" y="428" font-size="10.5" fill="currentColor" stroke="none" opacity="0.75">1st pass — route by category</text>
+        <path d="M580,406 C580,420 200,420 200,438" stroke-opacity="0.55" marker-end="url(#arrow)"/>
+        <path d="M580,406 C580,420 390,420 390,438" stroke-opacity="0.55" marker-end="url(#arrow)"/>
+        <line x1="580" y1="406" x2="580" y2="438" stroke-opacity="0.55" marker-end="url(#arrow)"/>
+        <path d="M580,406 C580,420 770,420 770,438" stroke-opacity="0.55" marker-end="url(#arrow)"/>
+        <path d="M580,406 C580,420 960,420 960,438" stroke-opacity="0.55" marker-end="url(#arrow)"/>
+
+        <!-- Resolver row: 5 boxes, an intentional gap centered under the Supervisor's axis carries the return riser, and the gap after Account carries the Finalize path -->
+        <g font-size="11.5">
+          <rect x="115" y="440" width="170" height="52" rx="8"/>
+          <text x="200" y="463" text-anchor="middle" stroke="none" fill="currentColor" font-weight="600">Technical</text>
+          <text x="200" y="480" text-anchor="middle" stroke="none" fill="currentColor" opacity="0.65" font-size="10">Resolver</text>
+
+          <rect x="305" y="440" width="170" height="52" rx="8"/>
+          <text x="390" y="463" text-anchor="middle" stroke="none" fill="currentColor" font-weight="600">Billing</text>
+          <text x="390" y="480" text-anchor="middle" stroke="none" fill="currentColor" opacity="0.65" font-size="10">Resolver</text>
+
+          <rect x="495" y="440" width="170" height="52" rx="8"/>
+          <text x="580" y="463" text-anchor="middle" stroke="none" fill="currentColor" font-weight="600">Account</text>
+          <text x="580" y="480" text-anchor="middle" stroke="none" fill="currentColor" opacity="0.65" font-size="10">Resolver</text>
+
+          <rect x="685" y="440" width="170" height="52" rx="8"/>
+          <text x="770" y="463" text-anchor="middle" stroke="none" fill="currentColor" font-weight="600">Booking</text>
+          <text x="770" y="480" text-anchor="middle" stroke="none" fill="currentColor" opacity="0.65" font-size="10">Resolver</text>
+
+          <rect x="875" y="440" width="170" height="52" rx="8"/>
+          <text x="960" y="463" text-anchor="middle" stroke="none" fill="currentColor" font-weight="600">General</text>
+          <text x="960" y="480" text-anchor="middle" stroke="none" fill="currentColor" opacity="0.65" font-size="10">Resolver</text>
+        </g>
+
+        <!-- dashed group box around resolvers -->
+        <rect x="100" y="430" width="965" height="76" rx="10" stroke-dasharray="4 4" stroke-opacity="0.4"/>
+        <text x="1055" y="521" text-anchor="end" font-size="10" fill="currentColor" stroke="none" opacity="0.6">one shared factory, 5 instances — create_resolver_node()</text>
+
+        <!-- fan-in: each resolver's bottom edge down to a shared bus, well below the row -->
+        <line x1="200" y1="492" x2="200" y2="530" stroke-opacity="0.55"/>
+        <line x1="390" y1="492" x2="390" y2="530" stroke-opacity="0.55"/>
+        <line x1="580" y1="492" x2="580" y2="530" stroke-opacity="0.55"/>
+        <line x1="770" y1="492" x2="770" y2="530" stroke-opacity="0.55"/>
+        <line x1="960" y1="492" x2="960" y2="530" stroke-opacity="0.55"/>
+        <line x1="200" y1="530" x2="960" y2="530" stroke-opacity="0.55"/>
+
+        <!-- 2nd pass: return riser threads the 20px gap between Billing and Account (x=485), structurally clear of every box regardless of height -->
+        <line x1="485" y1="530" x2="485" y2="414" stroke-opacity="0.85" marker-end="url(#arrow)"/>
+        <text x="430" y="516" font-size="10.5" fill="currentColor" stroke="none" opacity="0.8">resolver result returns</text>
+
+        <!-- 2nd pass: Supervisor -> Finalize, threads the 20px gap between Account and Booking (x=675) -->
+        <path d="M580,406 C650,406 675,406 675,438" stroke-opacity="0.85"/>
+        <line x1="675" y1="438" x2="675" y2="590" stroke-opacity="0.85" marker-end="url(#arrow)"/>
+        <text x="690" y="547" font-size="10.5" fill="currentColor" stroke="none" opacity="0.85">2nd pass — confidence &#8805; 0.6</text>
+
+        <!-- Escalation box -->
+        <rect x="1090" y="470" width="180" height="56" rx="8"/>
+        <text x="1180" y="494" text-anchor="middle" font-size="13" fill="currentColor" stroke="none" font-weight="600">Escalation</text>
+        <text x="1180" y="512" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.65">LLM agent</text>
+
+        <!-- Finalize box -->
+        <rect x="470" y="592" width="220" height="56" rx="8"/>
+        <text x="580" y="616" text-anchor="middle" font-size="13" fill="currentColor" stroke="none" font-weight="600">Finalize / Persist</text>
+        <text x="580" y="634" text-anchor="middle" font-size="10.5" fill="currentColor" stroke="none" opacity="0.65">system node</text>
+
+        <!-- Escalation -> Finalize -->
+        <path d="M1180,526 C1160,578 850,604 692,596" stroke-opacity="0.7" marker-end="url(#arrow)"/>
+
+        <line x1="580" y1="648" x2="580" y2="678" marker-end="url(#arrow)"/>
+
+        <!-- END -->
+        <ellipse cx="580" cy="704" rx="110" ry="26" stroke-opacity="0.6"/>
+        <text x="580" y="709" text-anchor="middle" font-size="12" fill="currentColor" stroke="none">Response + DB update</text>
+      </g>
+    </svg>
+    <figcaption>The Supervisor node is re-entered twice per ticket. First pass: route to one of five resolvers by category (down), or bypass straight to Escalation on a hard business rule (top margin, right). Second pass, after a resolver returns through the gap between Billing and Account: send high-confidence results to Finalize through the gap after Account, low-confidence or self-flagged results back up to Escalation via the same top-margin route.</figcaption>
+  </figure>
+
+  <p>Implemented in <code>agentic/workflow.py</code> as a hand-built <code>StateGraph</code>: nodes added explicitly (<code>graph.add_node(...)</code> ×10), a single <code>add_conditional_edges("supervisor", route_from_supervisor, {...})</code> call reading whatever destination the Supervisor already wrote into <code>state["route"]</code>, and every resolver edging back to <code>"supervisor"</code> rather than finishing directly — so the same confidence check applies no matter which category handled the ticket. Compiled with <code>MemorySaver()</code> as the checkpointer and exported as the module-level <code>orchestrator</code>.</p>
+</section>
+
+<!-- ============ 03 AGENT ROSTER ============ -->
+<section id="agents">
+  <span class="eyebrow">03 — Agent Roster</span>
+  <h2>Eight agents, two system nodes</h2>
+  <p>All five category resolvers share <strong>one</strong> factory, <code>create_resolver_node(category, category_instructions, tool_names)</code> — same execution shape, different prompt and tool subset — so the 8-agent graph isn't eight times the bespoke code.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Node</th><th>Type</th><th>Responsibility</th><th>File</th></tr></thead>
+    <tbody>
+      <tr><td>Context Loader</td><td>deterministic system node</td><td>Loads CultPass profile + subscription, UDA-Hub ticket history, and relevant long-term memories before any reasoning happens</td><td><code>context_loader.py</code></td></tr>
+      <tr><td><strong>Classifier</strong></td><td>LLM, no tools</td><td>Categorizes the ticket, estimates urgency/sentiment/complexity, flags repeat issues and hard-escalate cases</td><td><code>classifier.py</code></td></tr>
+      <tr><td><strong>Supervisor</strong></td><td>rule-based router</td><td>Central dispatcher — routes by category or bypasses to Escalation; on re-entry, evaluates resolver confidence</td><td><code>supervisor.py</code></td></tr>
+      <tr><td><span class="cat-pill cat-technical">technical</span> Resolver</td><td>LLM + tools</td><td>Login/access issues, app bugs — checks for a blocked account before troubleshooting</td><td><code>resolvers.py</code></td></tr>
+      <tr><td><span class="cat-pill cat-billing">billing</span> Resolver</td><td>LLM + tools</td><td>Subscription tier/quota/payment, cancel/reactivate/upgrade — looks up current subscription before changing it</td><td><code>resolvers.py</code></td></tr>
+      <tr><td><span class="cat-pill cat-account">account</span> Resolver</td><td>LLM + tools</td><td>Profile questions, blocked-account questions — explains blocked status but never unblocks (always escalates that)</td><td><code>resolvers.py</code></td></tr>
+      <tr><td><span class="cat-pill cat-booking">booking</span> Resolver</td><td>LLM + tools</td><td>Book/cancel reservations, availability — fetches real ids via search/list tools rather than guessing them</td><td><code>resolvers.py</code></td></tr>
+      <tr><td><span class="cat-pill cat-general">general</span> Resolver</td><td>LLM + tools</td><td>Catch-all/FAQ — answers only from a retrieved article; escalates rather than guessing</td><td><code>resolvers.py</code></td></tr>
+      <tr><td><strong>Escalation</strong></td><td>LLM</td><td>Summarizes the ticket + any resolver attempt for a human, drafts the empathetic customer-facing handoff message</td><td><code>escalation.py</code></td></tr>
+      <tr><td>Finalize / Persist</td><td>deterministic system node</td><td>Writes the final <code>TicketMessage</code> + status, saves a resolution summary to long-term memory, flushes the trace</td><td><code>finalize.py</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>The resolver tool-calling loop</h3>
+  <p>Since <code>create_react_agent</code> is off the table, each resolver hand-rolls its own bounded loop, capped at <code>MAX_TOOL_ITERATIONS = 4</code>:</p>
+  <ol>
+    <li>Bind the resolver's allowed tools to the model — <code>model.bind_tools(...)</code>.</li>
+    <li>Invoke. If the response carries <code>tool_calls</code>, execute each one and append the results as <code>ToolMessage</code>s; repeat.</li>
+    <li>Once the model stops requesting tools (or the cap is hit — a nudge message asks it to answer with what it has), one final <code>model.with_structured_output(ResolverOutput)</code> call produces the answer contract.</li>
+  </ol>
+  <pre><code>class ResolverOutput(BaseModel):
+    response: str                # customer-facing draft
+    cited_article_ids: list[str] # knowledge-base grounding
+    confidence: float            # 0.0-1.0
+    escalate: bool
+    escalation_reason: str | None</code></pre>
+
+  <div class="callout">
+    <span class="eyebrow">Tool identity binding</span>
+    <p>A few tools need context — the customer's <code>external_user_id</code>, or the internal <code>user_id</code> for memory — that an LLM should never be trusted to supply itself. <code>_TOOL_BUILDERS</code> maps each logical tool name to a closure-builder that reads that context from graph <code>state</code> at call time and returns a ready-to-call <code>StructuredTool</code>. The LLM only ever sees parameters that are actually its choice to make: <code>query</code>, <code>action</code>, <code>tier</code>, <code>experience_id</code> — never internal ids.</p>
+  </div>
+
+  <h3>Confidence guidance</h3>
+  <p>Every resolver's prompt carries the same rule: confidence <strong>≥ 0.75</strong> only when the answer is directly grounded in a retrieved article or a successful tool call; confidence <strong>&lt; 0.5</strong> with <code>escalate=True</code> when no relevant article was found, a tool call failed, or the request is outside what the resolver can verify. The Supervisor's own trust threshold is <code>CONFIDENCE_THRESHOLD = 0.6</code>.</p>
+
+  <h3>Exact system prompts</h3>
+  <p>Each resolver reuses one base template, with a category-specific paragraph appended:</p>
+  <pre><code>You are the {category} support resolver for UDA-Hub (CultPass customer
+support). Use your tools to look up whatever you need -- knowledge base
+articles, account/subscription/reservation details -- before answering.
+Never invent information: only state facts you retrieved via a tool or
+that were already given to you in the ticket/account context.
+
+Confidence guidance: give confidence &gt;= 0.75 only when your answer is
+directly grounded in a retrieved knowledge article or a successful tool
+call. Give confidence &lt; 0.5 and set escalate=True if: no relevant
+knowledge article was found, a tool call failed or returned an error,
+the request is outside what you're able to do, or you cannot verify
+what the customer is asking about.
+
+{category_instructions}</code></pre>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Category</th><th>Category-specific instructions</th><th>Tools</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cat-pill cat-technical">technical</span></td><td>Check for a blocked account before troubleshooting anything else — that's not a technical bug and can't be fixed by these steps; escalate it instead.</td><td><code>search_knowledge_base</code>, <code>get_customer_profile</code>, <code>recall_customer_memory</code></td></tr>
+      <tr><td><span class="cat-pill cat-billing">billing</span></td><td>Look up the current subscription before making any change, and only call <code>manage_subscription</code> once you know what the customer actually wants.</td><td><code>search_knowledge_base</code>, <code>get_subscription_status</code>, <code>manage_subscription</code>, <code>recall_customer_memory</code></td></tr>
+      <tr><td><span class="cat-pill cat-account">account</span></td><td>If blocked, explain what that means — but you cannot unblock an account yourself; that always needs escalation.</td><td><code>search_knowledge_base</code>, <code>get_customer_profile</code>, <code>recall_customer_memory</code></td></tr>
+      <tr><td><span class="cat-pill cat-booking">booking</span></td><td>Use <code>search_experiences</code> and <code>list_reservations</code> before cancelling anything — get real ids from those tools rather than guessing.</td><td><code>search_knowledge_base</code>, <code>search_experiences</code>, <code>list_reservations</code>, <code>manage_reservation</code>, <code>recall_customer_memory</code></td></tr>
+      <tr><td><span class="cat-pill cat-general">general</span></td><td>Answer only from a retrieved knowledge base article; if nothing relevant is found, escalate rather than guessing.</td><td><code>search_knowledge_base</code>, <code>recall_customer_memory</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 04 STATE SCHEMA ============ -->
+<section id="state">
+  <span class="eyebrow">04 — State Schema</span>
+  <h2>One TypedDict, threaded through every node</h2>
+  <p><code>agentic/state.py</code> defines <code>TicketState</code>, carried through the entire graph. Two fields use non-default reducers so that node returns <em>append</em> instead of overwrite: <code>messages</code> uses LangGraph's <code>add_messages</code>, and <code>trace</code> uses <code>operator.add</code> (list concatenation) — every node's <code>{"trace": [entry]}</code> return value accumulates into a full audit history.</p>
+  <pre><code>class TicketState(TypedDict, total=False):
+    messages: Annotated[list[BaseMessage], add_messages]   # session memory
+    ticket_id: str
+    account_id: str
+    external_user_id: str
+    channel: str
+    reported_urgency: str | None
+    ticket_text: str
+    user_context: dict[str, Any]         # profile, subscription, history, memories
+    classification: Classification        # category, urgency, sentiment, complexity...
+    draft_response: str | None
+    cited_article_ids: list[str]
+    confidence: float | None
+    escalation_needed: bool
+    escalation_reason: str | None
+    escalation_summary: str | None
+    final_status: Literal["resolved", "escalated"]
+    route: str                            # supervisor's decision this pass
+    trace: Annotated[list[dict[str, Any]], operator.add]   # append-only audit trail</code></pre>
+</section>
+
+<!-- ============ 05 DATABASE ============ -->
+<section id="database">
+  <span class="eyebrow">05 — Database &amp; Seed Data</span>
+  <h2>Two separate SQLite databases</h2>
+  <p>CultPass is UDA-Hub's <em>customer</em>, not UDA-Hub itself — the two systems get two separate databases, each with its own SQLAlchemy models, seeded by two separate notebooks run in order. <code>agentic/tools/db.py</code> anchors both paths to <code>Path(__file__).resolve().parents[2]</code> (the <code>solution/</code> folder itself, not the process's working directory), so path resolution doesn't depend on where a notebook happens to be launched from.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="margin-top:0;">cultpass.db <span class="mono" style="font-size:0.7rem; color:var(--text-dim); font-weight:400;">— external, seeded by 01_external_db_setup.ipynb</span></h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Table</th><th>Key columns</th></tr></thead>
+        <tbody>
+          <tr><td><code>users</code></td><td>user_id (PK), full_name, email, is_blocked</td></tr>
+          <tr><td><code>subscriptions</code></td><td>subscription_id (PK), user_id (FK, 1:1), status, tier, monthly_quota, started_at, ended_at</td></tr>
+          <tr><td><code>experiences</code></td><td>experience_id (PK), title, description, location, when, slots_available, is_premium</td></tr>
+          <tr><td><code>reservations</code></td><td>reservation_id (PK), user_id (FK), experience_id (FK), status</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">udahub.db <span class="mono" style="font-size:0.7rem; color:var(--text-dim); font-weight:400;">— core, seeded by 02_core_db_setup.ipynb</span></h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Table</th><th>Key columns</th></tr></thead>
+        <tbody>
+          <tr><td><code>accounts</code></td><td>account_id (PK), account_name</td></tr>
+          <tr><td><code>users</code></td><td>user_id (PK, internal), account_id (FK), external_user_id, user_name</td></tr>
+          <tr><td><code>tickets</code></td><td>ticket_id (PK), account_id (FK), user_id (FK), channel</td></tr>
+          <tr><td><code>ticket_metadata</code></td><td>ticket_id (PK/FK), status, main_issue_type, tags</td></tr>
+          <tr><td><code>ticket_messages</code></td><td>message_id (PK), ticket_id (FK), role (user/agent/ai/system), content</td></tr>
+          <tr><td><code>knowledge</code></td><td>article_id (PK), account_id (FK), title, content, tags</td></tr>
+          <tr><td><code>customer_memory</code></td><td>memory_id (PK), account_id (FK), user_id (FK), memory_type, content, embedding (JSON), created_at</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <h3>What gets seeded</h3>
+  <div class="grid-3">
+    <div class="card">
+      <div class="threshold-value" style="font-size:1.6rem;">6</div>
+      <p style="margin:0;"><strong>CultPass users</strong> — two pre-seeded as <code>is_blocked=True</code> (Alice Kingsley, David Noir). Alice (<code>a4ab87</code>) is the demo identity used in <code>03_agentic_app.ipynb</code>, so the out-of-the-box demo always hits the escalation path.</p>
+    </div>
+    <div class="card">
+      <div class="threshold-value" style="font-size:1.6rem;">7</div>
+      <p style="margin:0;"><strong>Experiences</strong> — Brazil-themed cultural events (Carnival History Tour, Sunset Paddleboarding, Christ the Redeemer, MASP, …), randomized <code>when</code>/<code>slots_available</code>/<code>is_premium</code> at seed time.</p>
+    </div>
+    <div class="card">
+      <div class="threshold-value" style="font-size:1.6rem;">14</div>
+      <p style="margin:0;"><strong>Knowledge base articles</strong> spanning technical, billing, account, and booking categories — the setup notebook <em>asserts</em> at least 14 are loaded before proceeding.</p>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top:1rem;">
+  <table>
+    <thead><tr><th>#</th><th>Article title</th><th>Tags</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>How to Reserve a Spot for an Event</td><td>reservation, events, booking, attendance</td></tr>
+      <tr><td>2</td><td>What's Included in a CultPass Subscription</td><td>subscription, benefits, pricing, access</td></tr>
+      <tr><td>3</td><td>How to Cancel or Pause a Subscription</td><td>cancelation, pause, subscription, billing</td></tr>
+      <tr><td>4</td><td>How to Handle Login Issues?</td><td>login, password, access, escalation</td></tr>
+      <tr><td>5</td><td>Requesting a Refund for a Missed or Cancelled Event</td><td>refund, cancellation, events, billing</td></tr>
+      <tr><td>6</td><td>How to Update Payment Method or Billing Information</td><td>billing, payment, account, subscription</td></tr>
+      <tr><td>7</td><td>Can I Bring a Guest? Using Guest Passes</td><td>guest pass, sharing, events, subscription</td></tr>
+      <tr><td>8</td><td>Troubleshooting the CultPass App When It Won't Load or Crashes</td><td>app, technical, troubleshooting, bug</td></tr>
+      <tr><td>9</td><td>Accessibility Accommodations at CultPass Events</td><td>accessibility, accommodations, events, venues</td></tr>
+      <tr><td>10</td><td>How to Upgrade or Downgrade Your Subscription Plan</td><td>subscription, upgrade, downgrade, billing</td></tr>
+      <tr><td>11</td><td>What to Do If You Forgot Your QR Code at the Venue</td><td>qr code, entry, events, attendance</td></tr>
+      <tr><td>12</td><td>Managing Notifications and Event Reminders</td><td>notifications, settings, reminders, app</td></tr>
+      <tr><td>13</td><td>How the CultPass Referral Program Works</td><td>referral, rewards, promotions, growth</td></tr>
+      <tr><td>14</td><td>Requesting Account Data Access or Deletion</td><td>privacy, data, account deletion, compliance</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>The setup notebook also seeds one demo ticket: Alice Kingsley (<code>a4ab87</code>), channel <code>chat</code>, status <code>open</code>, content <em>"I can't log in to my Cultpass account."</em> — this is the identity <code>03_agentic_app.ipynb</code>'s demo cell drives.</p>
+</section>
+
+<!-- ============ 06 TOOLS & MCP ============ -->
+<section id="tools">
+  <span class="eyebrow">06 — Tools &amp; MCP</span>
+  <h2>Plain functions first, MCP as a second layer</h2>
+  <p>Business logic lives in plain, typed, independently-tested Python functions. Two FastMCP servers register those same functions directly as MCP tools — <code>mcp.tool(fn)</code>, no wrapper boilerplate, since they're already typed and documented. Every tool returns a structured contract and never raises for an expected failure:</p>
+  <pre><code>{"ok": True,  "data": ...}
+{"ok": False, "error": "&lt;human-readable reason&gt;"}</code></pre>
+  <p>That contract is what lets a resolver <em>react</em> to a failure — lower confidence, escalate — instead of the whole graph crashing on a bad lookup.</p>
+
+  <div class="callout">
+    <span class="eyebrow">MCP is a parallel interface, not the resolver's path</span>
+    <p>The resolver nodes call the plain tool functions <em>directly</em> (via the <code>_TOOL_BUILDERS</code> closures in §03) — not through the MCP layer. A stdio MCP round-trip would add latency for zero benefit when the caller is already in-process. The MCP servers exist so the same tools are reachable by any other MCP-speaking client, and are exercised directly via an in-process <code>fastmcp.Client</code> in the test suite (no subprocess needed).</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="margin-top:0;">mcp_cultpass_server.py <span class="mono" style="font-size:0.7rem; color:var(--text-dim); font-weight:400;">wraps cultpass.db</span></h3>
+      <div class="table-wrap"><table>
+        <tbody>
+          <tr><td><code>get_customer_profile(external_user_id)</code></td></tr>
+          <tr><td><code>get_subscription_status(external_user_id)</code></td></tr>
+          <tr><td><code>manage_subscription(external_user_id, action, tier=None)</code></td></tr>
+          <tr><td><code>list_reservations(external_user_id)</code></td></tr>
+          <tr><td><code>manage_reservation(external_user_id, action, experience_id=None, reservation_id=None)</code></td></tr>
+          <tr><td><code>search_experiences(query="", upcoming_only=True)</code></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">mcp_udahub_server.py <span class="mono" style="font-size:0.7rem; color:var(--text-dim); font-weight:400;">wraps udahub.db</span></h3>
+      <div class="table-wrap"><table>
+        <tbody>
+          <tr><td><code>search_knowledge_base(query, account_id, top_k=3)</code></td></tr>
+          <tr><td><code>get_ticket_history(account_id, external_user_id, exclude_ticket_id=None)</code></td></tr>
+          <tr><td><code>update_ticket_record(ticket_id, status=None, tags=None, message_role=None, message_content=None)</code></td></tr>
+          <tr><td><code>get_internal_user_id(account_id, external_user_id)</code></td></tr>
+          <tr><td><code>recall_customer_memory(user_id, query, top_k=3)</code></td></tr>
+          <tr><td><code>save_customer_memory(user_id, account_id, memory_type, content)</code></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <h3>Validation examples worth calling out</h3>
+  <p><code>manage_subscription</code> rejects unknown actions/tiers, unknown users, and users with no subscription on file. <code>manage_reservation</code> additionally blocks <em>booking</em> for a blocked account, rejects a full experience (<code>slots_available &lt;= 0</code>), and rejects double-cancelling the same reservation — each a structured <code>{"ok": False, "error": ...}</code>, never an exception.</p>
+</section>
+
+<!-- ============ 07 RAG ============ -->
+<section id="rag">
+  <span class="eyebrow">07 — Knowledge Retrieval (RAG)</span>
+  <h2>Embeddings + cosine similarity, no vector store</h2>
+  <p>Each article's <code>title + content + tags</code> is embedded once with <code>text-embedding-3-small</code> and cached in memory, keyed by <code>account_id</code> — the knowledge base is effectively static reference content, so re-embedding on every search would be wasted latency and cost. A search embeds the query and ranks the cached vectors by cosine similarity. No vector-store dependency was added; a 14-article corpus doesn't need one.</p>
+
+  <div class="threshold-box">
+    <div class="threshold-item">
+      <div class="threshold-value">0.35</div>
+      <strong>RELEVANCE_THRESHOLD</strong>
+      <p style="margin:0.4rem 0 0 0; font-size:0.88rem;">Gates the search tool's own <code>relevant</code> flag — deliberately separate from a resolver's self-reported confidence. Below this, it's treated as "no genuinely applicable article exists," a strong escalation trigger on its own.</p>
+    </div>
+    <div class="threshold-item">
+      <div class="threshold-value">0.60</div>
+      <strong>CONFIDENCE_THRESHOLD</strong>
+      <p style="margin:0.4rem 0 0 0; font-size:0.88rem;">The Supervisor's own bar for trusting a resolver's answer enough to finalize it, rather than escalating.</p>
+    </div>
+    <div class="threshold-item">
+      <div class="threshold-value">4</div>
+      <strong>MAX_TOOL_ITERATIONS</strong>
+      <p style="margin:0.4rem 0 0 0; font-size:0.88rem;">Bounds every resolver's tool-calling loop, so a confused model can't spin forever.</p>
+    </div>
+  </div>
+
+  <h3>Calibration — verified against real embeddings, not a guess</h3>
+  <p>The 0.35 threshold was spot-checked against real <code>text-embedding-3-small</code> embeddings over the live 14-article corpus. On-topic queries scored well clear of the threshold; a deliberately off-topic control query scored far below it:</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Query</th><th>Top match</th><th>Score</th></tr></thead>
+    <tbody>
+      <tr><td>"I can't log in to my account"</td><td>How to Handle Login Issues?</td><td class="mono">0.4552</td></tr>
+      <tr><td>"How do I get a refund for an event I missed?"</td><td>Requesting a Refund for a Missed or Cancelled Event</td><td class="mono">0.6357</td></tr>
+      <tr><td>"Can I bring a friend to an event with me?"</td><td>Can I Bring a Guest? Using Guest Passes</td><td class="mono">0.4978</td></tr>
+      <tr><td>"I want to change my subscription plan"</td><td>How to Upgrade or Downgrade Your Subscription Plan</td><td class="mono">0.5896</td></tr>
+      <tr style="background:var(--warn-tint);"><td>"What's the weather like in Rio de Janeiro?" <em>(off-topic control)</em></td><td>Managing Notifications and Event Reminders</td><td class="mono">0.0741</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>A gap that wide — real matches at 0.40–0.64, noise at 0.07 — confirms 0.35 sits safely between the two on this corpus, rather than being an arbitrary starting guess.</p>
+</section>
+
+<!-- ============ 08 MEMORY ============ -->
+<section id="memory">
+  <span class="eyebrow">08 — Memory Systems</span>
+  <h2>Three mechanisms, three different jobs</h2>
+  <div class="grid-3">
+    <div class="card">
+      <h4>Short-term (session)</h4>
+      <p style="margin:0;">The compiled graph's own <code>MemorySaver</code> checkpointer, scoped by <code>thread_id = ticket_id</code>. Keeps conversation state alive during one ticket session, inspectable via <code>orchestrator.get_state_history()</code>.</p>
+    </div>
+    <div class="card">
+      <h4>Long-term (cross-session)</h4>
+      <p style="margin:0;">A new <code>customer_memory</code> table keyed by UDA-Hub's <em>internal</em> <code>user_id</code>, not <code>thread_id</code> — survives across tickets and process restarts. Written by Finalize on resolution, read by Context Loader and every resolver.</p>
+    </div>
+    <div class="card">
+      <h4>Durable interaction history</h4>
+      <p style="margin:0;">Every <code>TicketMessage</code>/<code>TicketMetadata</code> write goes straight to <code>udahub.db</code> — the system of record, independent of LangGraph's own checkpointing.</p>
+    </div>
+  </div>
+  <p style="margin-top:1rem;">A custom SQLite table was chosen for long-term memory over LangGraph's <code>InMemoryStore</code> specifically because it needs to survive a process/kernel restart — an in-memory store, by construction, doesn't. <code>memory_type</code> is restricted to <code>"preference"</code> or <code>"resolution_summary"</code>; recall works the same way KB search does — embed the query, rank stored vectors by cosine similarity.</p>
+</section>
+
+<!-- ============ 09 MULTI-CHANNEL ============ -->
+<section id="channels">
+  <span class="eyebrow">09 — Multi-Channel Support</span>
+  <h2>Same logic, different voice per channel</h2>
+  <p><code>state["channel"]</code> is accepted as ticket metadata and persisted on every ticket — but resolvers go further than just storing it: they <em>adapt their draft response's style</em> to it, via a small guidance table appended to every resolver's system prompt at call time.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Channel</th><th>Guidance appended to the prompt</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">email</td><td>Write a complete email reply: open with a brief greeting using the customer's name if known, close with a short, professional sign-off.</td></tr>
+      <tr><td class="mono">chat</td><td>Keep the reply short and conversational — no greeting or sign-off, get straight to the answer.</td></tr>
+      <tr><td class="mono">social_media</td><td>Keep it brief and generic. Never include account-specific details in a reply that may be publicly visible — ask the customer to continue privately if specifics are needed.</td></tr>
+      <tr><td class="mono">(anything else)</td><td>Keep the reply clear and appropriately concise for the customer's channel.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Live-verified: same question, three channels</h3>
+  <p>Query: <em>"What's included in a CultPass subscription?"</em> — run through the exact same resolver logic and knowledge lookup, only <code>channel</code> varied. This ran against the real model, not a scripted fake.</p>
+  <div class="chan-compare">
+    <div class="chan-card">
+      <div class="chan-label">email</div>
+      <div class="chan-body">Subject: Information About Your CultPass Subscription<br><br>Dear Customer,<br><br>Thank you for reaching out!<br><br>A CultPass subscription includes 4 curated cultural experiences each month… Some premium experiences may require an additional fee.<br><br>Best regards,<br>UDA-Hub Support Team</div>
+    </div>
+    <div class="chan-card">
+      <div class="chan-label">chat</div>
+      <div class="chan-body">A CultPass subscription includes 4 cultural experiences per month, which can be art exhibitions, museum entries, music concerts, film screenings, and more. Some premium experiences may require an additional fee, shown in the app during reservation.</div>
+    </div>
+    <div class="chan-card">
+      <div class="chan-label">social_media</div>
+      <div class="chan-body">Your CultPass subscription includes 4 curated cultural experiences each month. These may consist of art exhibitions, museum entries, music concerts, film screenings, and more. Some premium experiences might require an additional fee.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 LOGGING ============ -->
+<section id="logging">
+  <span class="eyebrow">10 — Logging &amp; Tracing</span>
+  <h2>Every decision, twice: in-band and out-of-band</h2>
+  <p><code>log_event(state, node, event, **details)</code> is called by every node and does two things with each entry: appends it to <code>state["trace"]</code> — in-band, inspectable per-ticket via <code>get_state_history()</code> without touching the filesystem — and writes it as one JSON line to <code>logs/uda_hub_trace.jsonl</code> — out-of-band, greppable across every ticket and session, independent of any single LangGraph run.</p>
+  <p>Every entry carries <code>{timestamp, ticket_id, node, event, ...decision-specific details}</code>. A resolver's entry, for example, includes its full <code>tool_calls</code> list — tool name, arguments, and result — so tool usage is auditable from the log alone.</p>
+</section>
+
+<!-- ============ 11 WORKFLOWS ============ -->
+<section id="workflows">
+  <span class="eyebrow">11 — Example Workflows</span>
+  <h2>Four real runs, traced end to end</h2>
+  <p>Everything below is a real execution against the live model (<code>gpt-4o-mini</code> via a Vocareum-proxied OpenAI endpoint) and the real compiled <code>orchestrator</code> — not a scripted mock. Trace entries are lightly trimmed for readability; the underlying JSON structure is exactly what lands in <code>logs/uda_hub_trace.jsonl</code>.</p>
+
+  <!-- Workflow A: resolution -->
+  <div class="workflow">
+    <div class="workflow-head">
+      <div>
+        <h3>A · Successful resolution — billing self-correction</h3>
+        <p class="ticket-text" style="margin:0.3rem 0 0 0;">"I want to upgrade my subscription to premium."</p>
+      </div>
+      <span class="status-pill resolved">● resolved</span>
+    </div>
+    <div class="workflow-body">
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">context_loader → loaded</div><div class="trace-detail">Profile found, not blocked, no prior tickets, no memories yet.</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">classifier → classified</div><div class="trace-detail"><span class="cat-pill cat-billing">billing</span> · urgency: low · hard_escalate: false</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">supervisor → routed</div><div class="trace-detail">route: <code>billing_resolver</code> — "Routed by category: billing"</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">billing_resolver → resolved</div><div class="trace-detail">
+        Two real tool calls, in order:<br>
+        1. <code>manage_subscription(action="reactivate", tier="premium")</code> → subscription came back <code>status=active, tier=basic</code> — not yet premium.<br>
+        2. The resolver noticed and self-corrected: <code>manage_subscription(action="change_tier", tier="premium")</code> → <code>status=active, tier=premium</code>. ✓<br>
+        confidence: <strong>1.0</strong> · escalate: false
+      </div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">supervisor → routed</div><div class="trace-detail">route: <code>finalize</code> — "Resolver confidence 1.0 met threshold"</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">finalize → persisted</div><div class="trace-detail">final_status: resolved · ticket_update_ok: true · <strong>memory_saved: true</strong> (a resolution_summary was written for future recall)</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">final message</div><div class="trace-detail">"Your subscription has been successfully upgraded to the premium tier. If you have any further questions or need assistance, feel free to ask!"</div></div></div>
+    </div>
+  </div>
+
+  <!-- Workflow B: escalation -->
+  <div class="workflow">
+    <div class="workflow-head">
+      <div>
+        <h3>B · Hard-escalate bypass — blocked account</h3>
+        <p class="ticket-text" style="margin:0.3rem 0 0 0;">"I can't log in to my account and it says I'm blocked. This is urgent."</p>
+      </div>
+      <span class="status-pill escalated">● escalated</span>
+    </div>
+    <div class="workflow-body">
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">context_loader → loaded</div><div class="trace-detail">Profile found, <strong>is_blocked: true</strong>.</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">classifier → classified</div><div class="trace-detail"><span class="cat-pill cat-account">account</span> · urgency: high · <strong>hard_escalate: true</strong></div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">supervisor → routed</div><div class="trace-detail">route: <code>escalation</code> — "Customer's account is blocked." <em>(no resolver ever runs — the hard-escalate flag bypasses the whole fan-out)</em></div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">escalation → escalated</div><div class="trace-detail">internal_summary: "The customer is unable to log in to their account due to it being blocked. This issue is marked as urgent and has not been attempted to be resolved yet. The escalation is necessary because the customer's account status requires specialist intervention to unblock it."</div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">finalize → persisted</div><div class="trace-detail">final_status: escalated · ticket_update_ok: true · memory_saved: false <em>(escalated tickets don't get a resolution-summary memory entry)</em></div></div></div>
+      <div class="trace-step"><div class="trace-dot"></div><div><div class="trace-node">final message</div><div class="trace-detail">"Thank you for reaching out. I understand that you're having trouble logging into your account, and I want to assure you that your request has been passed to a specialist who will assist you further. We appreciate your patience as we work to resolve this issue."</div></div></div>
+    </div>
+  </div>
+
+  <!-- Workflow C: raw trace JSON -->
+  <div class="workflow">
+    <div class="workflow-head"><h3>C · Raw structured log — both runs above, verbatim</h3></div>
+    <div class="workflow-body">
+      <pre><code>{"ticket_id": "dd023c86-…", "node": "context_loader", "event": "loaded", "found_profile": true, "is_blocked": false, "past_ticket_count": 0, "memory_count": 0}
+{"ticket_id": "dd023c86-…", "node": "classifier", "event": "classified", "category": "billing", "urgency": "low", "hard_escalate": false}
+{"ticket_id": "dd023c86-…", "node": "supervisor", "event": "routed", "route": "billing_resolver", "reason": "Routed by category: billing"}
+{"ticket_id": "dd023c86-…", "node": "billing_resolver", "event": "resolved", "confidence": 1.0, "escalate": false,
+  "tool_calls": [
+    {"tool": "manage_subscription", "args": {"action": "reactivate", "tier": "premium"},
+     "result": {"ok": true, "data": {"status": "active", "tier": "basic", ...}}},
+    {"tool": "manage_subscription", "args": {"action": "change_tier", "tier": "premium"},
+     "result": {"ok": true, "data": {"status": "active", "tier": "premium", ...}}}
+  ]}
+{"ticket_id": "dd023c86-…", "node": "supervisor", "event": "routed", "route": "finalize", "reason": "Resolver confidence 1.0 met threshold"}
+{"ticket_id": "dd023c86-…", "node": "finalize", "event": "persisted", "final_status": "resolved", "ticket_update_ok": true, "memory_saved": true}
+
+{"ticket_id": "22b05f8f-…", "node": "context_loader", "event": "loaded", "found_profile": true, "is_blocked": true, "past_ticket_count": 0, "memory_count": 0}
+{"ticket_id": "22b05f8f-…", "node": "classifier", "event": "classified", "category": "account", "urgency": "high", "hard_escalate": true}
+{"ticket_id": "22b05f8f-…", "node": "supervisor", "event": "routed", "route": "escalation", "reason": "Customer's account is blocked."}
+{"ticket_id": "22b05f8f-…", "node": "escalation", "event": "escalated", "reason": "Customer's account is blocked.", "internal_summary": "…"}
+{"ticket_id": "22b05f8f-…", "node": "finalize", "event": "persisted", "final_status": "escalated", "ticket_update_ok": true, "memory_saved": false}</code></pre>
+    </div>
+  </div>
+
+  <!-- Workflow D: RAG -->
+  <div class="workflow">
+    <div class="workflow-head"><h3>D · Knowledge-base search — live retrieval, five queries</h3></div>
+    <div class="workflow-body">
+      <p style="margin-top:0;">Same <code>search_knowledge_base()</code> call, five different queries, real embeddings — the four on-topic queries all resolve to their obviously-correct article; the off-topic control clears no threshold at all.</p>
+      <div class="table-wrap" style="margin-bottom:0;">
+      <table>
+        <thead><tr><th>Query</th><th>relevant</th><th>Top 3 matches (score)</th></tr></thead>
+        <tbody>
+          <tr><td>"I can't log in to my account"</td><td><span class="status-pill resolved">true</span></td><td>Login Issues (0.4552) · Data Access/Deletion (0.3233) · App Troubleshooting (0.2616)</td></tr>
+          <tr><td>"How do I get a refund for an event I missed?"</td><td><span class="status-pill resolved">true</span></td><td>Refund for Missed/Cancelled Event (0.6357) · QR Code (0.4573) · Reserve a Spot (0.3686)</td></tr>
+          <tr><td>"Can I bring a friend to an event with me?"</td><td><span class="status-pill resolved">true</span></td><td>Guest Passes (0.4978) · Accessibility (0.4153) · Reserve a Spot (0.4027)</td></tr>
+          <tr><td>"I want to change my subscription plan"</td><td><span class="status-pill resolved">true</span></td><td>Upgrade/Downgrade (0.5896) · Cancel/Pause (0.4837) · Payment Method (0.4436)</td></tr>
+          <tr><td>"What's the weather like in Rio de Janeiro?"</td><td><span class="status-pill escalated">false</span></td><td>Notifications (0.0741) · Refund (0.0723) · Upgrade/Downgrade (0.0566)</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 12 TESTING ============ -->
+<section id="testing">
+  <span class="eyebrow">12 — Testing Strategy</span>
+  <h2>97 tests, no API key required</h2>
+  <p>Every LLM-calling node (<code>classifier</code>, the resolver factory, <code>escalation</code>) accepts an injectable <code>llm</code> parameter that defaults to a lazily-constructed real <code>ChatOpenAI</code> — tests instead pass a <code>FakeChatModel</code> that duck-types only <code>bind_tools</code> and <code>with_structured_output</code>, returning scripted responses. The same pattern applies to embeddings: <code>embed_texts(texts, embed_fn=None)</code> takes an injectable function, so knowledge-base and memory tests use a deterministic fake embedder instead of a live call.</p>
+  <div class="grid-2">
+    <div class="card">
+      <h4>Tool tests</h4>
+      <p style="margin:0;">Every database-abstraction tool's validation, error handling, and <code>{ok, ...}</code> contract, against isolated temp SQLite databases via <code>tmp_path</code> + <code>create_all()</code> — the real seeded databases are never touched.</p>
+    </div>
+    <div class="card">
+      <h4>MCP server tests</h4>
+      <p style="margin:0;">Both FastMCP servers' tool sets and responses, exercised via an in-process <code>fastmcp.Client</code> — no subprocess spawned.</p>
+    </div>
+    <div class="card">
+      <h4>Agent node tests</h4>
+      <p style="margin:0;">Each node's decision logic in isolation — classification fallback, Supervisor's two-pass routing, resolver tool loops (including bounded-iteration and failed-tool-call edge cases), escalation, context assembly, finalize's memory-write gating.</p>
+    </div>
+    <div class="card">
+      <h4>Integration tests</h4>
+      <p style="margin:0;">The <em>actual compiled</em> <code>orchestrator</code>, invoked end-to-end through both a resolution and an escalation scenario — real tool logic, real DB writes, only the LLM calls faked.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 13 RUN ============ -->
+<section id="run">
+  <span class="eyebrow">13 — Setup &amp; Run</span>
+  <h2>Quick reference</h2>
+  <pre><code># 1. Install dependencies
+pip install -r solution/requirements.txt
+
+# 2. Configure credentials (solution/.env — never committed)
+OPENAI_API_KEY=your-key-here
+
+# 3. Seed both databases, in order (from solution/)
+#    01_external_db_setup.ipynb  -&gt; data/external/cultpass.db
+#    02_core_db_setup.ipynb      -&gt; data/core/udahub.db
+
+# 4. Run the entrypoint
+#    03_agentic_app.ipynb  -&gt; imports agentic.workflow.orchestrator,
+#                              drives it via utils.chat_interface()
+
+# 5. Run the test suite
+pytest</code></pre>
+  <p><code>chat_interface(agent, ticket_id, account_id, external_user_id, channel="chat", reported_urgency=None)</code> is a REPL: each line typed is treated as the ticket's current text and run through the whole pipeline again, while <code>thread_id=ticket_id</code> keeps short-term memory alive across turns via the checkpointer. Type <code>quit</code>/<code>exit</code>/<code>q</code> to end.</p>
+</section>
+
+<!-- ============ 14 DECISIONS ============ -->
+<section id="decisions">
+  <span class="eyebrow">14 — Design Decisions</span>
+  <h2>Why it's built this way</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h4>Hand-built graph, not create_react_agent</h4>
+      <p style="margin:0;">Explicit project requirement: every node, edge, and routing decision must be visible in code, not delegated to a prebuilt helper — <code>langgraph_supervisor</code> is installed but deliberately unused.</p>
+    </div>
+    <div class="card">
+      <h4>Rule-based Supervisor, not an LLM</h4>
+      <p style="margin:0;">The Classifier is already forced via structured output to commit to one category. Routing off that is a table lookup and a threshold check — adding an LLM call there would only add latency and a new failure mode for zero benefit.</p>
+    </div>
+    <div class="card">
+      <h4>No vector database</h4>
+      <p style="margin:0;">14 articles fits comfortably in an in-memory, per-account embedding cache. A dedicated vector store would be infrastructure the corpus doesn't need yet.</p>
+    </div>
+    <div class="card">
+      <h4>Custom memory table, not InMemoryStore</h4>
+      <p style="margin:0;">Long-term memory has to survive a process/kernel restart by definition — an in-memory store can't do that, so a real SQLite table with a JSON-encoded embedding column was used instead.</p>
+    </div>
+    <div class="card">
+      <h4>One resolver factory, five instances</h4>
+      <p style="margin:0;">All five category resolvers are identical in execution shape — bind tools, loop, structured output. Only the prompt and tool subset differ, so that's the only thing that varies per instance.</p>
+    </div>
+    <div class="card">
+      <h4>MCP as a parallel surface</h4>
+      <p style="margin:0;">Built to satisfy the project's MCP recommendation and make tools available to any MCP client — but the in-process resolver loop bypasses it, since a stdio round-trip buys nothing when caller and callee already share a process.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>UDA-Hub — Udacity AI Engineer capstone project. Report generated from the live <code>solution/</code> codebase, including real, model-verified example runs. See <code>solution/agentic/design/architecture.md</code> for the source design document and <code>solution/README.md</code> for full setup instructions.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  var stored = localStorage.getItem('uda-hub-theme');
+  if (stored === 'light' || stored === 'dark') root.setAttribute('data-theme', stored);
+
+  function currentIsDark(){
+    var attr = root.getAttribute('data-theme');
+    if (attr === 'dark') return true;
+    if (attr === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  btn.addEventListener('click', function(){
+    var next = currentIsDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('uda-hub-theme', next);
+  });
+
+  // Scrollspy for the TOC
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var sections = links.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); });
+  function onScroll(){
+    var pos = window.scrollY + 120;
+    var activeIdx = 0;
+    for (var i = 0; i < sections.length; i++){
+      if (sections[i] && sections[i].offsetTop <= pos) activeIdx = i;
+    }
+    links.forEach(function(a, i){ a.classList.toggle('active', i === activeIdx); });
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+</script>
+</body>
+</html>
