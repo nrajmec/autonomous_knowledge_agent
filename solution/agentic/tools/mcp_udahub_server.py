@@ -5,12 +5,17 @@ Same split as `mcp_cultpass_server.py`: business logic lives in
 `knowledge_tools.py` / `udahub_tools.py` / `memory_tools.py` and is
 unit-tested there; this module only registers those functions as MCP tools.
 
-Run standalone (manual smoke test / MCP inspector):
+Run standalone (manual smoke test / MCP inspector, or for use by any other
+MCP-speaking client):
     python -m agentic.tools.mcp_udahub_server
 
-Agents connect to this over stdio via
-`langchain_mcp_adapters.client.MultiServerMCPClient` (wired up in
-`agentic/workflow.py`), which spawns this file as a subprocess per session.
+Note: the LangGraph resolver nodes in this project do NOT go through this
+server -- they call the underlying functions directly (see `_TOOL_BUILDERS`
+in `agentic/agents/resolver.py`), since a resolver already runs in-process
+and a stdio MCP round-trip would add nothing but latency. This server
+exists so the same tools are available to any other MCP-speaking
+client/agent, and is exercised directly (via `fastmcp.Client`, no
+subprocess needed) in `tests/test_mcp_servers.py`.
 """
 from fastmcp import FastMCP
 
