@@ -38,6 +38,7 @@ from agentic.tools.cultpass_tools import (
     manage_subscription,
     search_experiences,
 )
+from agentic.agents.history import format_recent_messages
 from agentic.tools.knowledge_tools import search_knowledge_base
 from agentic.tools.memory_tools import recall_customer_memory
 from agentic.tracing import log_event
@@ -66,6 +67,15 @@ class ResolverOutput(BaseModel):
     )
     escalate: bool = Field(description="True if this should be handed to a human instead of sent as-is")
     escalation_reason: str | None = Field(default=None, description="Why, if escalate is True")
+    detected_preference: str | None = Field(
+        default=None,
+        description=(
+            "A durable customer preference explicitly stated in this ticket "
+            "(e.g. 'prefers email over phone', 'always wants the cheapest "
+            "tier'), worth remembering for future tickets. Leave null unless "
+            "the customer actually stated one -- never invent one."
+        ),
+    )
 
 
 BASE_RESOLVER_INSTRUCTIONS = """You are the {category} support resolver for \
@@ -81,6 +91,15 @@ call. Give confidence < 0.5 and set escalate=True if: no relevant knowledge \
 article was found, a tool call failed or returned an error, the request is \
 outside what you're able to do, or you cannot verify what the customer is \
 asking about.
+
+If the customer explicitly states a durable preference about how they want \
+to be helped or contacted (e.g. "please only email me", "I always want the \
+cheapest option"), capture it in detected_preference so it can be recalled \
+on a future ticket. Leave it null for anything that isn't a real, \
+restatable preference.
+
+If this session has earlier turns, use them as context for what the \
+customer is actually asking now -- don't ask them to repeat themselves.
 
 {category_instructions}"""
 
@@ -111,6 +130,61 @@ DEFAULT_CHANNEL_GUIDANCE = "Keep the reply clear and appropriately concise for t
 
 def _channel_guidance(channel: str | None) -> str:
     return CHANNEL_GUIDANCE.get((channel or "").strip().lower(), DEFAULT_CHANNEL_GUIDANCE)
+
+
+# Coarse, non-leaking error categories for the trace log -- checked in order,
+# first match wins. Derived from the actual error strings the tool layer
+# returns (see cultpass_tools.py / udahub_tools.py), without repeating the
+# raw message (which can embed ids or other customer-specific text).
+_ERROR_CATEGORY_RULES = (
+    ("unknown tool", "unknown_tool"),
+    ("blocked", "blocked_account"),
+    ("no slots available", "unavailable"),
+    ("found", "not_found"),
+    ("already", "conflict"),
+    ("required", "validation"),
+    ("must be", "validation"),
+)
+
+
+def _classify_error(message: str) -> str:
+    lowered = message.lower()
+    for keyword, category in _ERROR_CATEGORY_RULES:
+        if keyword in lowered:
+            return category
+    return "other"
+
+
+def _redact_tool_call(name: str, result: Any) -> dict[str, Any]:
+    """Safe metadata about one tool call for the shared trace log.
+
+    Deliberately excludes the raw call arguments and result payload -- both
+    can carry customer data (profile fields, subscription/reservation
+    details, free-text error messages). Only tool name, success, a result
+    count, and a coarse error category are recorded; the full result is
+    still available in-memory to the LLM for its own reasoning via the
+    ToolMessage appended right after this.
+    """
+    ok = bool(isinstance(result, dict) and result.get("ok"))
+    result_count: int | None = None
+    error_category: str | None = None
+    if isinstance(result, dict):
+        data = result.get("data")
+        if isinstance(data, list):
+            result_count = len(data)
+        elif data not in (None,):
+            result_count = 1
+        else:
+            result_count = 0
+        if not ok:
+            error_category = _classify_error(str(result.get("error", "")))
+    entry: dict[str, Any] = {"tool": name, "ok": ok, "result_count": result_count, "error_category": error_category}
+    # search_knowledge_base's `relevant` flag isn't customer data -- it's a
+    # signal about the knowledge base itself -- and it's exactly what a
+    # retrieval-success-rate metric needs, so it's the one field kept as-is.
+    if name == "search_knowledge_base" and isinstance(result, dict) and "relevant" in result:
+        entry["relevant"] = bool(result["relevant"])
+    return entry
 
 
 def _build_search_knowledge_base_tool(state: dict[str, Any]) -> StructuredTool:
@@ -242,12 +316,14 @@ def create_resolver_node(
         tool_model = model.bind_tools(list(built_tools.values()))
 
         channel_prompt = f"{system_prompt}\n\nChannel guidance: {_channel_guidance(state.get('channel'))}"
+        history_block = format_recent_messages(state)
         messages: list[Any] = [
             SystemMessage(content=channel_prompt),
             HumanMessage(
                 content=(
                     f"Account context: {state.get('user_context', {})}\n\n"
-                    f"Ticket text:\n{state.get('ticket_text', '')}"
+                    + (f"{history_block}\n\n" if history_block else "")
+                    + f"Ticket text:\n{state.get('ticket_text', '')}"
                 )
             ),
         ]
@@ -272,7 +348,7 @@ def create_resolver_node(
                         # only guards against something unexpected so one bad call can't crash the graph.
                         tool_result = {"ok": False, "error": str(exc)}
 
-                tool_call_log.append({"tool": call["name"], "args": call["args"], "result": tool_result})
+                tool_call_log.append(_redact_tool_call(call["name"], tool_result))
                 messages.append(ToolMessage(content=str(tool_result), tool_call_id=call["id"]))
         else:
             messages.append(
@@ -297,6 +373,7 @@ def create_resolver_node(
             "confidence": result.confidence,
             "escalation_needed": result.escalate,
             "escalation_reason": result.escalation_reason,
+            "detected_preference": result.detected_preference,
             "trace": [entry],
         }
 

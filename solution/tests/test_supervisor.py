@@ -77,5 +77,26 @@ def test_second_pass_escalates_when_resolver_flagged_it_even_with_ok_confidence(
     assert "escalation_reason" not in result
 
 
+def test_supervisor_logs_reason_category_not_raw_reason():
+    state = {
+        "ticket_id": "t1",
+        "classification": {
+            "category": "account",
+            "hard_escalate": True,
+            "hard_escalate_reason": "Customer Jane Doe's account is blocked pending fraud review",
+        },
+    }
+
+    result = supervisor.supervisor_node(state)
+
+    entry = result["trace"][0]
+    assert entry["reason_category"] == "blocked_account"
+    assert "reason" not in entry
+    assert "Jane Doe" not in str(entry)
+    # The full reason is still available in state for the Escalation agent's
+    # own (in-memory, not logged) reasoning.
+    assert "Jane Doe" in result["escalation_reason"]
+
+
 def test_route_from_supervisor_reads_state():
     assert supervisor.route_from_supervisor({"route": "finalize"}) == "finalize"

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentic.tracing import log_event
+from agentic.tracing import categorize_reason, log_event
 
 CATEGORY_TO_RESOLVER = {
     "technical": "technical_resolver",
@@ -55,7 +55,14 @@ def supervisor_node(state: dict[str, Any]) -> dict[str, Any]:
             route = "finalize"
             reason = f"Resolver confidence {confidence} met threshold"
 
-    entry = log_event(state, node="supervisor", event="routed", route=route, reason=reason)
+    # `reason` can carry LLM-authored, ticket-specific text (a classifier's
+    # hard_escalate_reason or a resolver's escalation_reason) -- log a
+    # coarse category instead, same treatment as agentic/agents/escalation.py.
+    # The full `reason` still flows into state["escalation_reason"] below
+    # for the Escalation agent's own (in-memory, not logged) reasoning.
+    entry = log_event(
+        state, node="supervisor", event="routed", route=route, reason_category=categorize_reason(reason)
+    )
 
     update: dict[str, Any] = {"route": route, "trace": [entry]}
     # Make sure escalation_needed/escalation_reason are set whenever we

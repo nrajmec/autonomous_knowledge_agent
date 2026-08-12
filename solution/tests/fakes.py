@@ -42,6 +42,10 @@ class FakeChatModel:
         # runnable's .invoke(), in call order -- lets a test assert on the
         # prompt actually built (e.g. per-channel system prompt wording).
         self.captured_tool_loop_messages: list[Any] = []
+        # Same, but for with_structured_output()'s runnable -- lets a test
+        # assert on the prompt built by nodes with no tool loop at all
+        # (classifier, escalation).
+        self.captured_structured_messages: list[Any] = []
 
     def _pop_tool_loop(self):
         if not self._tool_loop_responses:
@@ -57,4 +61,4 @@ class FakeChatModel:
         return _ScriptedRunnable(self._pop_tool_loop, on_invoke=self.captured_tool_loop_messages.append)
 
     def with_structured_output(self, schema):
-        return _ScriptedRunnable(self._pop_structured)
+        return _ScriptedRunnable(self._pop_structured, on_invoke=self.captured_structured_messages.append)

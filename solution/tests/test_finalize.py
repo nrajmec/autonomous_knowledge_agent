@@ -92,6 +92,86 @@ def test_finalize_without_internal_user_id_skips_memory_save(monkeypatch):
     assert save_called["called"] is False
 
 
+def test_finalize_saves_detected_preference_alongside_resolution_summary(monkeypatch):
+    saved = []
+
+    monkeypatch.setattr(finalize, "update_ticket_record", lambda ticket_id, **kwargs: {"ok": True, "data": {}})
+    monkeypatch.setattr(
+        finalize,
+        "save_customer_memory",
+        lambda user_id, account_id, memory_type, content: saved.append((user_id, memory_type, content))
+        or {"ok": True, "data": {}},
+    )
+
+    state = {
+        "ticket_id": "t1",
+        "account_id": "acc1",
+        "escalation_needed": False,
+        "draft_response": "Upgraded your plan.",
+        "detected_preference": "Prefers email over phone contact",
+        "user_context": {"internal_user_id": "user1"},
+    }
+
+    result = finalize.finalize_node(state)
+
+    memory_types_saved = {call[1] for call in saved}
+    assert memory_types_saved == {"resolution_summary", "preference"}
+    assert ("user1", "preference", "Prefers email over phone contact") in saved
+    assert result["trace"][0]["preference_saved"] is True
+
+
+def test_finalize_saves_preference_even_when_ticket_is_escalated(monkeypatch):
+    saved = []
+
+    monkeypatch.setattr(finalize, "update_ticket_record", lambda ticket_id, **kwargs: {"ok": True, "data": {}})
+    monkeypatch.setattr(
+        finalize,
+        "save_customer_memory",
+        lambda user_id, account_id, memory_type, content: saved.append((user_id, memory_type, content))
+        or {"ok": True, "data": {}},
+    )
+
+    state = {
+        "ticket_id": "t1",
+        "account_id": "acc1",
+        "escalation_needed": True,
+        "escalation_summary": "Escalated: needs manual review.",
+        "detected_preference": "Always wants the cheapest tier",
+        "user_context": {"internal_user_id": "user1"},
+    }
+
+    result = finalize.finalize_node(state)
+
+    # No resolution_summary (ticket wasn't resolved), but the preference is
+    # about the customer, not this ticket's outcome, so it's still saved.
+    assert saved == [("user1", "preference", "Always wants the cheapest tier")]
+    assert result["trace"][0]["memory_saved"] is False
+    assert result["trace"][0]["preference_saved"] is True
+
+
+def test_finalize_skips_preference_save_when_none_detected(monkeypatch):
+    saved = []
+
+    monkeypatch.setattr(finalize, "update_ticket_record", lambda ticket_id, **kwargs: {"ok": True, "data": {}})
+    monkeypatch.setattr(
+        finalize,
+        "save_customer_memory",
+        lambda user_id, account_id, memory_type, content: saved.append(memory_type) or {"ok": True, "data": {}},
+    )
+
+    state = {
+        "ticket_id": "t1",
+        "account_id": "acc1",
+        "escalation_needed": False,
+        "draft_response": "Resolved.",
+        "user_context": {"internal_user_id": "user1"},
+    }
+
+    finalize.finalize_node(state)
+
+    assert "preference" not in saved
+
+
 def test_finalize_escalated_falls_back_to_default_message_when_no_reason_given(monkeypatch):
     calls = {}
 

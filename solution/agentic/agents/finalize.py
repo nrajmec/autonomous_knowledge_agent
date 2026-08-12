@@ -49,6 +49,14 @@ def finalize_node(state: dict[str, Any]) -> dict[str, Any]:
         save_result = save_customer_memory(internal_user_id, account_id, "resolution_summary", summary)
         memory_saved = save_result.get("ok", False)
 
+    # A stated preference is worth keeping regardless of how this particular
+    # ticket turned out -- it's about the customer, not this resolution.
+    preference_saved = False
+    detected_preference = state.get("detected_preference")
+    if detected_preference and internal_user_id:
+        pref_result = save_customer_memory(internal_user_id, account_id, "preference", detected_preference)
+        preference_saved = pref_result.get("ok", False)
+
     entry = log_event(
         state,
         node="finalize",
@@ -56,6 +64,7 @@ def finalize_node(state: dict[str, Any]) -> dict[str, Any]:
         final_status=final_status,
         ticket_update_ok=update_result.get("ok", False),
         memory_saved=memory_saved,
+        preference_saved=preference_saved,
     )
 
     return {

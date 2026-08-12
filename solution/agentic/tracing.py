@@ -13,6 +13,13 @@ two things with it:
 
 Log destination is a `logs/` directory alongside `agentic/`, i.e. under
 `solution/`, not `starter/`.
+
+This file is shared and greppable across every ticket and session, so
+`categorize_reason()` below exists to keep nodes from writing customer- or
+ticket-specific free text into it (a routing "reason" or an escalation
+reason can be LLM-authored and reference ticket specifics) -- callers log a
+coarse category instead of the raw string. See `agentic/agents/resolver.py`
+for the equivalent treatment of tool call arguments/results.
 """
 from __future__ import annotations
 
@@ -24,6 +31,36 @@ from typing import Any
 
 LOG_DIR = Path(__file__).resolve().parents[1] / "logs"
 LOG_PATH = LOG_DIR / "uda_hub_trace.jsonl"
+
+# Checked in order, first match wins. Covers both the deterministic reason
+# strings this project's own nodes generate (category routing, confidence
+# threshold results) and the freeform ones an LLM can author (a classifier's
+# hard_escalate_reason, a resolver's escalation_reason).
+_REASON_CATEGORY_RULES = (
+    ("routed by category", "category_routed"),
+    ("met threshold", "confidence_ok"),
+    ("below threshold", "confidence_low"),
+    ("blocked", "blocked_account"),
+    ("human", "human_requested"),
+    ("manager", "human_requested"),
+    ("safety", "safety_or_legal"),
+    ("legal", "safety_or_legal"),
+    ("abuse", "safety_or_legal"),
+    ("confidence", "low_confidence"),
+    ("no relevant", "no_knowledge_match"),
+    ("error", "tool_failure"),
+)
+
+
+def categorize_reason(reason: str | None) -> str:
+    """Map a routing/escalation reason string to a coarse, safe category."""
+    if not reason:
+        return "unspecified"
+    lowered = reason.lower()
+    for keyword, category in _REASON_CATEGORY_RULES:
+        if keyword in lowered:
+            return category
+    return "other"
 
 _logger = logging.getLogger("uda_hub.trace")
 

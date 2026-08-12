@@ -31,3 +31,6 @@ sqlalchemy>=2.0.41
 #   python-dotenv           1.2.2
 #   sqlalchemy              2.0.51
 #   pytest                  9.1.1   (test-only dependency, not in root reqs)
+#   nbconvert               7.17.1  (used to execute 01/02/03 notebooks
+#                                     headlessly and save real outputs; not
+#                                     needed just to open them in Jupyter)

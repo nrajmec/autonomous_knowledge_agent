@@ -91,6 +91,7 @@ class ResolverOutput(BaseModel):
     confidence: float                   # 0.0-1.0
     escalate: bool
     escalation_reason: str | None
+    detected_preference: str | None     # a durable preference the customer stated, if any
 ```
 
 **Tool identity binding.** A few tools need context (the customer's `external_user_id`, or
@@ -104,6 +105,23 @@ LLM only ever sees the parameters that are actually its choice (`query`, `action
 retrieved knowledge article or a successful tool call; <0.5 with `escalate=True` when no
 relevant article was found, a tool call failed, or the request is outside what the resolver can
 verify. Supervisor's own threshold for trusting that answer is `confidence >= 0.6`.
+
+**Session history in the prompt.** `agentic/agents/history.py`'s `format_recent_messages(state)`
+renders the last few turns of `state["messages"]` as a small transcript, folded into the
+Classifier's, every resolver's, and Escalation's prompt (empty string on a first turn, so nothing
+changes there). Without this, `state["messages"]` was only ever *stored* by the checkpointer —
+never actually read by an agent — so a follow-up like "can you fix the issue we just discussed"
+had nothing to resolve "that" against. Live-verified: a two-turn session where turn 2's resolver
+prompt genuinely contains turn 1's ticket text and draft response, and the turn 2 reply correctly
+references what was raised in turn 1. Covered by `tests/test_workflow_integration.py::
+test_same_session_second_turn_depends_on_first_turn` plus per-agent unit tests.
+
+**Preference detection.** A resolver that notices the customer state a durable preference (e.g.
+"only contact me by email") fills `detected_preference`; `finalize_node` then calls
+`save_customer_memory(internal_user_id, account_id, "preference", ...)` independent of whether
+the ticket itself resolved or escalated — a preference is about the customer, not this ticket's
+outcome. This is the workflow path that actually *writes* the `"preference"` memory type
+`memory_tools.py` already supported but nothing previously produced.
 
 ## State schema
 
@@ -188,14 +206,20 @@ Three distinct mechanisms, each solving a different requirement:
 
 - **Short-term (session)**: the compiled graph's own checkpointer (`MemorySaver`,
   `agentic/workflow.py`), scoped by `thread_id = ticket_id`. Keeps conversation state during
-  one session; inspectable via `orchestrator.get_state_history()`.
+  one session; inspectable via `orchestrator.get_state_history()`. Actually reaches agent
+  *reasoning*, not just storage — see "Session history in the prompt" above.
 - **Long-term (cross-session)**: a new `customer_memory` table (`data/models/udahub.py`,
   `CustomerMemory`) — `memory_id, account_id, user_id, memory_type, content, embedding,
   created_at` — keyed by UDA-Hub's *internal* `user_id`, not `thread_id`, so it survives
-  across tickets and process restarts. Written by Finalize (`save_customer_memory`) on
-  resolution, read by Context Loader and every resolver (`recall_customer_memory`). A custom
-  SQLite table was chosen over LangGraph's `InMemoryStore` specifically for that
-  restart-durability guarantee.
+  across tickets and process restarts. `memory_type` is `"resolution_summary"` (written by
+  Finalize on resolution) or `"preference"` (written by Finalize whenever a resolver detects
+  one — see "Preference detection" above); both are read by Context Loader and every resolver
+  (`recall_customer_memory`). A custom SQLite table was chosen over LangGraph's `InMemoryStore`
+  specifically for that restart-durability guarantee. Live-verified cross-session: a preference
+  stated on one ticket was recalled by Context Loader on a second, independent ticket for the
+  same customer (different `thread_id`) before the Classifier even ran. Covered by
+  `tests/test_workflow_integration.py::
+  test_cross_session_preference_saved_then_recalled_on_a_different_ticket`.
 - **Durable interaction history** (distinct from both): every `TicketMessage` /
   `TicketMetadata` write goes straight to `udahub.db` (`agentic/tools/udahub_tools.py`) — this
   is the system of record for "customer interaction history," independent of LangGraph's own
@@ -208,6 +232,24 @@ entry: appends it to `state["trace"]` (in-band, inspectable per-ticket via
 `get_state_history()`) and writes it as one JSON line to `logs/uda_hub_trace.jsonl`
 (out-of-band, greppable/parseable across all tickets and sessions). Every entry carries
 `{timestamp, ticket_id, node, event, ...decision-specific details}`.
+
+**Redaction.** The log is shared and greppable across every ticket, so nothing that could carry
+customer data or ticket-specific free text goes into it:
+- A resolver's tool calls are logged via `_redact_tool_call()` (`resolver.py`) as
+  `{tool, ok, result_count, error_category}` — never the raw call arguments or result payload
+  (profile fields, subscription/reservation details, ...). `search_knowledge_base`'s `relevant`
+  flag is the one exception kept as-is, since it describes the knowledge base itself, not the
+  customer, and is exactly what a retrieval-success-rate metric needs.
+- Supervisor's routing `reason` and Escalation's `escalation_reason` can be LLM-authored (a
+  classifier's `hard_escalate_reason`, a resolver's own `escalation_reason`) and may narrate
+  ticket specifics — both are logged via `tracing.categorize_reason()` as a coarse category
+  (`blocked_account`, `low_confidence`, `no_knowledge_match`, ...) instead of the raw string.
+  Escalation's `internal_summary` is logged only as `has_internal_summary: bool`.
+
+**Metrics.** `agentic/trace_metrics.py` is a pure query layer over the log: `load_trace_entries()`
++ `compute_metrics()` produce knowledge-retrieval success rate, escalation frequency, and
+per-tool call counts/success rates; `format_report()` renders them for a notebook or terminal.
+Demonstrated live in `03_agentic_app.ipynb`'s final cell.
 
 ## Multi-channel support
 
@@ -242,13 +284,19 @@ context) persists across turns via the checkpointer.
 
 ## Testing
 
-No `OPENAI_API_KEY` is available in the development environment, so every LLM-calling node
-(`classifier`, the resolver factory, `escalation`) accepts an injectable `llm` parameter that
-defaults to a lazily-constructed real `ChatOpenAI` — tests instead pass a `FakeChatModel`
-(`tests/fakes.py`) that duck-types `bind_tools` / `with_structured_output` with scripted
-responses. `tests/test_workflow_integration.py` runs the *real* compiled graph end-to-end
-(real tool logic, real DB writes, against throwaway temp databases) with only the LLM calls
-faked, covering both a resolution and an escalation scenario.
+Every LLM-calling node (`classifier`, the resolver factory, `escalation`) accepts an injectable
+`llm` parameter that defaults to a lazily-constructed real `ChatOpenAI` — the automated suite
+passes a `FakeChatModel` (`tests/fakes.py`) that duck-types `bind_tools` / `with_structured_output`
+with scripted responses, so it never depends on a live API key. `tests/test_workflow_integration.py`
+runs the *real* compiled graph end-to-end (real tool logic, real DB writes, against throwaway
+temp databases) with only the LLM calls faked, across seven scenarios: a normal FAQ resolution,
+a tool-driven booking, the hard-escalate bypass, a resolver-triggered (low-confidence) escalation,
+a same-session multi-turn conversation, and a cross-session preference save/recall.
+
+Separately, once a real API key became available, every one of those scenario *types* was also
+run live against the real model and saved in `03_agentic_app.ipynb` — the closest thing to a
+production run this project can produce, including the trace-metrics report over that real run's
+log.
 
 ## Assumptions
 

@@ -1,5 +1,7 @@
 """Tests for agentic/agents/classifier.py, using a FakeChatModel so no
 OPENAI_API_KEY is needed."""
+from langchain_core.messages import AIMessage, HumanMessage
+
 import agentic.agents.classifier as classifier
 from tests.fakes import FakeChatModel
 
@@ -77,3 +79,60 @@ def test_classifier_surfaces_hard_escalate_flag():
 
     assert result["classification"]["hard_escalate"] is True
     assert result["classification"]["hard_escalate_reason"] == "Account is blocked"
+
+
+def test_classifier_folds_prior_session_messages_into_prompt():
+    fake_llm = FakeChatModel(
+        structured_responses=[
+            classifier.ClassificationSchema(
+                category="billing",
+                urgency="low",
+                sentiment="neutral",
+                complexity="simple",
+                is_repeat_issue=False,
+                hard_escalate=False,
+            )
+        ]
+    )
+    state = {
+        "ticket_id": "t1",
+        "ticket_text": "does that include the one I asked about?",
+        "user_context": {},
+        "messages": [
+            HumanMessage(content="What experiences are included this month?"),
+            AIMessage(content="This month includes the Carnival History Tour and 6 others."),
+            HumanMessage(content="does that include the one I asked about?"),
+        ],
+    }
+
+    classifier.classifier_node(state, llm=fake_llm)
+
+    prompt_text = str(fake_llm.captured_structured_messages[0])
+    assert "Carnival History Tour" in prompt_text
+    assert "What experiences are included this month?" in prompt_text
+
+
+def test_classifier_omits_history_block_on_first_turn():
+    fake_llm = FakeChatModel(
+        structured_responses=[
+            classifier.ClassificationSchema(
+                category="general",
+                urgency="low",
+                sentiment="neutral",
+                complexity="simple",
+                is_repeat_issue=False,
+                hard_escalate=False,
+            )
+        ]
+    )
+    state = {
+        "ticket_id": "t1",
+        "ticket_text": "Hi there",
+        "user_context": {},
+        "messages": [HumanMessage(content="Hi there")],
+    }
+
+    classifier.classifier_node(state, llm=fake_llm)
+
+    prompt_text = str(fake_llm.captured_structured_messages[0])
+    assert "Conversation so far" not in prompt_text

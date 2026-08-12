@@ -15,6 +15,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from agentic.agents.history import format_recent_messages
 from agentic.tracing import log_event
 
 CATEGORIES = ("technical", "billing", "account", "booking", "general")
@@ -24,6 +25,10 @@ system for CultPass (a subscription events platform). Read the customer's \
 ticket and their account context, then classify it. Be decisive: pick \
 exactly one category even if the ticket touches more than one topic -- pick \
 the customer's primary intent.
+
+If this session has earlier turns, use them as context -- a follow-up like \
+"does that include the one I asked about?" only makes sense in light of what \
+was said before it.
 
 Categories:
 - technical: login/access issues, app bugs or crashes
@@ -96,6 +101,7 @@ def classifier_node(state: dict[str, Any], llm: BaseChatModel | None = None) -> 
     model = llm or _get_default_llm()
     structured_model = model.with_structured_output(ClassificationSchema)
 
+    history_block = format_recent_messages(state)
     prompt = [
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(
@@ -103,7 +109,8 @@ def classifier_node(state: dict[str, Any], llm: BaseChatModel | None = None) -> 
                 f"Ticket channel: {state.get('channel', 'unknown')}\n"
                 f"Customer-reported urgency: {state.get('reported_urgency', 'not specified')}\n\n"
                 f"Account context:\n{_summarize_context(state.get('user_context', {}))}\n\n"
-                f"Ticket text:\n{state.get('ticket_text', '')}"
+                + (f"{history_block}\n\n" if history_block else "")
+                + f"Ticket text:\n{state.get('ticket_text', '')}"
             )
         ),
     ]

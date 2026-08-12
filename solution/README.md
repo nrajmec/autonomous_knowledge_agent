@@ -28,11 +28,12 @@ solution/
                                 # mcp_udahub_server.py) wrapping them
     design/architecture.md     # architecture doc + Mermaid diagram
     state.py                   # TicketState (StateGraph schema)
-    tracing.py                 # structured JSONL logging (logs/)
+    tracing.py                 # structured JSONL logging (logs/) + reason redaction
+    trace_metrics.py           # retrieval/escalation/tool-usage report over the trace log
     workflow.py                # hand-built StateGraph — the orchestrator
   data/
     core/, external/, models/  # SQLAlchemy models + seeded SQLite DBs
-  tests/                       # pytest suite (92 tests)
+  tests/                       # pytest suite (124 tests)
 ```
 
 ## Setup
@@ -60,11 +61,15 @@ Run notebooks in order from this folder:
    14 articles across technical/billing/account/booking/general categories
    in `data/external/cultpass_articles.jsonl`).
 3. `03_agentic_app.ipynb` — the entrypoint. Imports `orchestrator` from
-   `agentic/workflow.py` and drives it via `utils.chat_interface()`, an
-   interactive REPL. Type `quit` / `exit` / `q` to end a session. The demo
-   cell uses a customer already seeded by step 2 (`account_id="cultpass"`,
-   `external_user_id="a4ab87"`); swap in any other seeded
-   `external_user_id` to try a different customer.
+   `agentic/workflow.py`. Documents `utils.chat_interface()`, an interactive
+   REPL (`quit` / `exit` / `q` to end a session), and — since that requires
+   live keyboard input a saved notebook can't provide — additionally runs
+   and saves output for a full scripted demonstration: a normal FAQ
+   resolution, an urgent/complex billing case, a successful tool-driven
+   booking, a missing-knowledge escalation, a hard-escalate bypass, a
+   same-session multi-turn conversation (second turn depends on the first),
+   a cross-session preference save-then-recall, and a final
+   retrieval/escalation/tool-usage metrics report.
 
 `chat_interface()` seeds `ticket_id`, `account_id`, `external_user_id`,
 `channel`, and `reported_urgency` into graph state each turn — the loaded
@@ -79,11 +84,14 @@ ticket.
 pytest
 ```
 
-92 tests, covering every tool module, every agent node, the two MCP
-servers, and two full end-to-end runs of the *compiled* orchestrator graph
-(`tests/test_workflow_integration.py`) — one resolution path, one
-escalation path — against throwaway temp SQLite databases (the real seeded
-databases under `data/` are never touched by tests). `pyproject.toml` sets
+124 tests, covering every tool module, every agent node, the two MCP
+servers, the trace-metrics reporting layer, and seven full end-to-end runs
+of the *compiled* orchestrator graph (`tests/test_workflow_integration.py`)
+— a normal FAQ resolution, a tool-driven booking, the original hard-escalate
+bypass, a resolver-triggered (low-confidence) escalation, a same-session
+multi-turn conversation, and a cross-session preference save/recall — all
+against throwaway temp SQLite databases (the real seeded databases under
+`data/` are never touched by tests). `pyproject.toml` sets
 `pythonpath = ["."]` so imports resolve regardless of invocation directory.
 
 LLM calls (`ChatOpenAI`) and OpenAI embedding calls are behind injectable
@@ -106,9 +114,19 @@ suite runs without an `OPENAI_API_KEY`, using deterministic fakes instead.
 - **RAG**: OpenAI embeddings + in-memory cosine similarity over the
   `Knowledge` table, cached per account.
 - **Memory**: short-term via LangGraph's `MemorySaver` checkpointer
-  (`thread_id = ticket_id`); long-term via a custom `customer_memory` SQLite
-  table, keyed by internal `user_id`, read by the Context Loader and
-  resolvers and written by Finalize.
+  (`thread_id = ticket_id`) — folded into every LLM prompt via
+  `agentic/agents/history.py`, so a follow-up turn genuinely depends on
+  what was said earlier in the session, not just stored inertly; long-term
+  via a custom `customer_memory` SQLite table (`resolution_summary` and
+  `preference` entries), keyed by internal `user_id`, read by the Context
+  Loader/resolvers and written by Finalize — including preferences a
+  resolver explicitly detects in the ticket text, recalled on any later
+  ticket for that same customer.
+- **Logging**: the shared trace log (`logs/uda_hub_trace.jsonl`) never
+  carries raw tool arguments/results or free-text LLM narrative — only
+  tool name, success, result count, and a coarse error/reason category.
+  `agentic/trace_metrics.py` computes retrieval success rate, escalation
+  frequency, and tool-usage patterns from it.
 
 See [`agentic/design/architecture.md`](agentic/design/architecture.md) for
 the full diagram, state schema, routing rules, and design rationale.
@@ -137,3 +155,4 @@ original list):
 | python-dotenv | 1.2.2 |
 | sqlalchemy | 2.0.51 |
 | pytest | 9.1.1 (test-only) |
+| nbconvert | 7.17.1 (used to execute the notebooks headlessly and save real outputs; not needed just to open them in Jupyter) |

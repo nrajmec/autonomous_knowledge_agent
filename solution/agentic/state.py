@@ -54,6 +54,7 @@ class TicketState(TypedDict, total=False):
     confidence: float | None
     escalation_needed: bool
     escalation_reason: str | None
+    detected_preference: str | None
 
     # Set by the Escalation agent.
     escalation_summary: str | None

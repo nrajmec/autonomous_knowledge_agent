@@ -15,7 +15,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from agentic.tracing import log_event
+from agentic.agents.history import format_recent_messages
+from agentic.tracing import categorize_reason, log_event
 
 SYSTEM_PROMPT = """You are the Escalation agent for UDA-Hub support. A ticket \
 has been routed to you instead of being resolved automatically. Write two \
@@ -49,11 +50,13 @@ def escalation_node(state: dict[str, Any], llm: BaseChatModel | None = None) -> 
     model = llm or _get_default_llm()
     structured_model = model.with_structured_output(EscalationOutput)
 
+    history_block = format_recent_messages(state)
     prompt = [
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(
             content=(
-                f"Ticket text:\n{state.get('ticket_text', '')}\n\n"
+                (f"{history_block}\n\n" if history_block else "")
+                + f"Ticket text:\n{state.get('ticket_text', '')}\n\n"
                 f"Classification: {state.get('classification')}\n"
                 f"Escalation reason so far: {state.get('escalation_reason')}\n"
                 f"Resolver's draft attempt (if any): {state.get('draft_response')}"
@@ -63,12 +66,15 @@ def escalation_node(state: dict[str, Any], llm: BaseChatModel | None = None) -> 
 
     result: EscalationOutput = structured_model.invoke(prompt)
 
+    # The trace log is shared/greppable across every ticket -- log that a
+    # summary was written and how long it is, not the free-text summary
+    # itself, which can narrate customer-specific details from the ticket.
     entry = log_event(
         state,
         node="escalation",
         event="escalated",
-        reason=state.get("escalation_reason"),
-        internal_summary=result.internal_summary,
+        reason_category=categorize_reason(state.get("escalation_reason")),
+        has_internal_summary=bool(result.internal_summary),
     )
 
     return {
